@@ -1,0 +1,18 @@
+import { Component, inject } from '@angular/core';
+import { RouterOutlet, RouterLink, RouterLinkActive } from '@angular/router';
+import { AuthService } from './core/auth.service';
+import { I18n } from './core/i18n.service';
+
+@Component({
+  selector: 'app-root',
+  imports: [RouterOutlet, RouterLink, RouterLinkActive],
+  templateUrl: './app.html',
+  styleUrl: './app.scss'
+})
+export class App {
+  auth = inject(AuthService);
+  i18n = inject(I18n);
+
+  logout(): void { this.auth.logout(); }
+  toggleLang(): void { this.i18n.toggle(); }
+}

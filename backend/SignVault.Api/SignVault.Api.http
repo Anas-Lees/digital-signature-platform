@@ -1,0 +1,6 @@
+@SignVault.Api_HostAddress = http://localhost:5093
+
+GET {{SignVault.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

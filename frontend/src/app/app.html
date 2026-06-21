@@ -1,0 +1,35 @@
+<header class="topbar">
+  <div class="brand">
+    <span class="logo">✒️</span>
+    <div>
+      <div class="brand-title">{{ i18n.t('app.title') }}</div>
+      <div class="brand-sub">{{ i18n.t('app.tagline') }}</div>
+    </div>
+  </div>
+
+  <nav class="nav">
+    @if (auth.isLoggedIn()) {
+      <a routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }">{{ i18n.t('nav.documents') }}</a>
+    }
+    <a routerLink="/verify" routerLinkActive="active">{{ i18n.t('nav.verify') }}</a>
+    @if (!auth.isLoggedIn()) {
+      <a routerLink="/login" routerLinkActive="active">{{ i18n.t('nav.login') }}</a>
+      <a routerLink="/register" routerLinkActive="active">{{ i18n.t('nav.register') }}</a>
+    } @else {
+      <span class="who">{{ auth.user()?.displayName }}</span>
+      <button class="btn ghost" (click)="logout()">{{ i18n.t('nav.logout') }}</button>
+    }
+    <button class="btn ghost lang" (click)="toggleLang()" aria-label="Toggle language">
+      {{ i18n.lang() === 'en' ? 'العربية' : 'English' }}
+    </button>
+  </nav>
+</header>
+
+<main class="content">
+  <router-outlet></router-outlet>
+</main>
+
+<footer class="foot">
+  <span>SignVault · Angular + ASP.NET Core + EF Core</span>
+  <span class="muted small">{{ i18n.t('common.signedBy') }}</span>
+</footer>

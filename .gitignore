@@ -1,0 +1,31 @@
+# ───────────── Secrets & generated data (NEVER commit) ─────────────
+# The private signing key (PFX) is generated at runtime
+**/keys/
+**/*.pfx
+**/*.key
+# Uploaded files
+**/storage/
+# SQLite database
+**/*.db
+**/*.db-shm
+**/*.db-wal
+**/appsettings.*.Local.json
+.env
+
+# ───────────── .NET ─────────────
+[Bb]in/
+[Oo]bj/
+*.user
+
+# ───────────── Node / Angular ─────────────
+node_modules/
+dist/
+.angular/
+npm-debug.log*
+
+# ───────────── Editors / OS ─────────────
+.vs/
+.idea/
+*.suo
+Thumbs.db
+.DS_Store
