@@ -68,12 +68,22 @@ using (var scope = app.Services.CreateScope())
     Seed.Run(db);
 }
 
-app.MapOpenApi();                          // JSON: /openapi/v1.json
-app.MapScalarApiReference(o => o.WithTitle("SignVault API"));  // interactive UI: /scalar/v1
+if (app.Environment.IsDevelopment())
+{
+    app.MapOpenApi();                          // JSON: /openapi/v1.json
+    app.MapScalarApiReference(o => o.WithTitle("SignVault API"));  // interactive UI: /scalar/v1
+}
+
+// Serve the built Angular SPA from wwwroot (single origin in production).
+app.UseDefaultFiles();
+app.UseStaticFiles();
 
 app.UseCors(SpaCors);
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
+
+// Any non-API, non-file route is a client-side Angular route → return index.html.
+app.MapFallbackToFile("index.html");
 
 app.Run();

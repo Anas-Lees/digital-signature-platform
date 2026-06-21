@@ -20,7 +20,6 @@ import { DocIllustration } from '../../shared/doc-illustration';
       <div class="illus"><app-doc-illustration></app-doc-illustration></div>
 
       <div class="card">
-        <!-- primary: drop a file, no id, no login -->
         <div class="dropzone" [class.drag]="dragging()" (click)="fileInput.click()"
              (dragover)="onDragOver($event)" (dragleave)="dragging.set(false)" (drop)="onDrop($event)">
           <input #fileInput type="file" hidden (change)="onPick($event)" />
@@ -29,7 +28,7 @@ import { DocIllustration } from '../../shared/doc-illustration';
             <path d="M12 16V4M7 9l5-5 5 5"/><path d="M5 20h14"/>
           </svg>
           <div class="dz-title">{{ i18n.t('verify.dropTitle') }}</div>
-          <div class="dz-hint">{{ fileName() || i18n.t('verify.dropHint') }}</div>
+          <div class="dz-hint truncate" [title]="fileName()">{{ fileName() || i18n.t('verify.dropHint') }}</div>
         </div>
 
         @if (busy()) { <p class="muted small center mt">{{ i18n.t('common.loading') }}</p> }
@@ -46,14 +45,11 @@ import { DocIllustration } from '../../shared/doc-illustration';
               </div>
             }
             <div class="r-sub">{{ r.message }}</div>
-            @if (r.fileName) { <div class="r-meta">{{ r.fileName }}</div> }
-            @if (r.certThumbprint) {
-              <div class="r-meta">{{ i18n.t('common.thumbprint') }}: <code>{{ r.certThumbprint }}</code></div>
-            }
+            @if (r.fileName) { <div class="r-file truncate" [title]="r.fileName">{{ r.fileName }}</div> }
           </div>
+          <button class="btn block mt" (click)="another(fileInput)">{{ i18n.t('verify.another') }}</button>
         }
 
-        <!-- secondary: check by id (share links) -->
         <details class="byid" [open]="byIdOpen()">
           <summary>{{ i18n.t('verify.byIdTitle') }}</summary>
           <label class="field mt">
@@ -65,9 +61,6 @@ import { DocIllustration } from '../../shared/doc-illustration';
             {{ i18n.t('verify.checkById') }}
           </button>
         </details>
-
-        <button class="btn subtle block sm mt" (click)="showKey()">{{ i18n.t('verify.publicKey') }}</button>
-        @if (pubKey()) { <pre class="pem">{{ pubKey() }}</pre> }
       </div>
     </section>
 
@@ -85,7 +78,6 @@ export class Verify implements OnInit {
   dragging = signal(false);
   byIdOpen = signal(false);
   result = signal<VerifyResponse | null>(null);
-  pubKey = signal<string>('');
 
   ngOnInit(): void {
     const id = this.route.snapshot.queryParamMap.get('doc');
@@ -106,6 +98,13 @@ export class Verify implements OnInit {
     if (file) this.verify(file);
   }
 
+  another(input: HTMLInputElement): void {
+    this.result.set(null);
+    this.fileName.set('');
+    input.value = '';
+    input.click();
+  }
+
   private verify(file: File): void {
     this.fileName.set(file.name);
     this.busy.set(true);
@@ -122,9 +121,5 @@ export class Verify implements OnInit {
       next: (r) => { this.result.set(r); this.busy.set(false); },
       error: (e) => { this.result.set(e?.error ?? null); this.busy.set(false); }
     });
-  }
-
-  showKey(): void {
-    this.docService.publicKey().subscribe(k => this.pubKey.set(k.publicKeyPem));
   }
 }

@@ -17,6 +17,10 @@
 [Oo]bj/
 *.user
 
+# ───────────── Production build output ─────────────
+/publish/
+backend/SignVault.Api/wwwroot/
+
 # ───────────── Node / Angular ─────────────
 node_modules/
 dist/

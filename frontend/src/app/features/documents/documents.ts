@@ -20,14 +20,15 @@ import { DocIllustration } from '../../shared/doc-illustration';
         <h2>{{ i18n.t('docs.uploadTitle') }}</h2>
         <p class="lead">{{ i18n.t('docs.uploadHint') }}</p>
 
-        <label class="filepick mt">
+        <label class="filepick mt" [class.drag]="dragging()"
+               (dragover)="onDragOver($event)" (dragleave)="dragging.set(false)" (drop)="onDrop($event)">
           <input #fileInput type="file" (change)="onFile($event)" aria-label="Choose a file" />
           <span class="pick">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1f7fc2"
                  stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M12 16V4M7 9l5-5 5 5"/><path d="M5 20h14"/>
             </svg>
-            <span class="name">{{ fileName() || i18n.t('docs.choose') }}</span>
+            <span class="name truncate" [title]="fileName()">{{ fileName() || i18n.t('docs.choose') }}</span>
           </span>
         </label>
 
@@ -66,9 +67,9 @@ import { DocIllustration } from '../../shared/doc-illustration';
           <tbody>
             @for (d of docs(); track d.id) {
               <tr>
-                <td>
-                  <div class="fname">{{ d.fileName }}</div>
-                  <div class="fmeta">
+                <td class="file-cell">
+                  <div class="fname truncate" [title]="d.fileName">{{ d.fileName }}</div>
+                  <div class="fmeta truncate">
                     {{ formatBytes(d.sizeBytes) }}
                     @if (d.signature?.signerName) {
                       · {{ i18n.t('docs.signedByLabel') }} {{ d.signature?.signerName }}
@@ -112,6 +113,16 @@ export class Documents implements OnInit {
   busy = signal(false);
   error = signal('');
   copied = signal('');
+  dragging = signal(false);
+
+  onDragOver(e: DragEvent): void { e.preventDefault(); this.dragging.set(true); }
+
+  onDrop(e: DragEvent): void {
+    e.preventDefault();
+    this.dragging.set(false);
+    const f = e.dataTransfer?.files?.[0];
+    if (f) { this.file = f; this.fileName.set(f.name); }
+  }
 
   signedCount = computed(() => this.docs().filter(d => d.status === 'Signed').length);
   signedPct = computed(() => {
