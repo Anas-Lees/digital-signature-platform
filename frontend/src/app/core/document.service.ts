@@ -30,6 +30,13 @@ export class DocumentService {
     return this.http.get<VerifyResponse>(`${API_BASE}/verify/${documentId}`);
   }
 
+  /** Easiest public check: send a file, get back who signed it and whether it's valid. No id needed. */
+  verifyFile(file: File): Observable<VerifyResponse> {
+    const form = new FormData();
+    form.append('file', file);
+    return this.http.post<VerifyResponse>(`${API_BASE}/verify`, form);
+  }
+
   verifyUpload(documentId: string, file: File): Observable<VerifyResponse> {
     const form = new FormData();
     form.append('file', file);

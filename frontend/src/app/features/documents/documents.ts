@@ -46,9 +46,6 @@ import { DocIllustration } from '../../shared/doc-illustration';
             <div class="n">{{ signedCount() }}</div>
             <div class="l">{{ i18n.t('docs.signedTotal') }}</div>
           </div>
-          <div class="center mt">
-            <span class="badge neutral"><span class="dot"></span>{{ i18n.t('common.authority') }}</span>
-          </div>
         </div>
       </div>
     </section>
@@ -71,7 +68,12 @@ import { DocIllustration } from '../../shared/doc-illustration';
               <tr>
                 <td>
                   <div class="fname">{{ d.fileName }}</div>
-                  <div class="fmeta">{{ formatBytes(d.sizeBytes) }}</div>
+                  <div class="fmeta">
+                    {{ formatBytes(d.sizeBytes) }}
+                    @if (d.signature?.signerName) {
+                      · {{ i18n.t('docs.signedByLabel') }} {{ d.signature?.signerName }}
+                    }
+                  </div>
                 </td>
                 <td>
                   @if (d.status === 'Signed') {
@@ -87,12 +89,9 @@ import { DocIllustration } from '../../shared/doc-illustration';
                   }
                   <button class="btn sm" (click)="download(d)">{{ i18n.t('docs.download') }}</button>
                   @if (d.status === 'Signed') {
-                    <button class="btn sm" (click)="verify(d.id)">{{ i18n.t('docs.verify') }}</button>
-                  }
-                  @if (results()[d.id]; as r) {
-                    <span class="badge" [class.good]="r.valid" [class.bad]="!r.valid">
-                      <span class="dot"></span>{{ r.valid ? i18n.t('verify.valid') : i18n.t('verify.invalid') }}
-                    </span>
+                    <button class="btn sm" (click)="copyLink(d.id)">
+                      {{ copied() === d.id ? i18n.t('docs.copied') : i18n.t('docs.share') }}
+                    </button>
                   }
                 </td>
               </tr>
@@ -112,7 +111,7 @@ export class Documents implements OnInit {
   fileName = signal('');
   busy = signal(false);
   error = signal('');
-  results = signal<Record<string, VerifyResponse>>({});
+  copied = signal('');
 
   signedCount = computed(() => this.docs().filter(d => d.status === 'Signed').length);
   signedPct = computed(() => {
@@ -155,9 +154,11 @@ export class Documents implements OnInit {
     });
   }
 
-  verify(id: string): void {
-    this.docService.verifyStored(id).subscribe({
-      next: (r) => this.results.update(m => ({ ...m, [id]: r }))
+  copyLink(id: string): void {
+    const url = `${location.origin}/verify?doc=${id}`;
+    navigator.clipboard.writeText(url).then(() => {
+      this.copied.set(id);
+      setTimeout(() => { if (this.copied() === id) this.copied.set(''); }, 1600);
     });
   }
 

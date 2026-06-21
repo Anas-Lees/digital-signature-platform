@@ -14,6 +14,7 @@ export interface AuthResponse {
 export interface SignatureDto {
   id: string;
   documentId: string;
+  signerName: string;
   algorithm: string;
   signatureBase64: string;
   certThumbprint: string;
@@ -35,6 +36,8 @@ export interface VerifyResponse {
   valid: boolean;
   message: string;
   documentId: string | null;
+  fileName: string | null;
+  signerName: string | null;
   algorithm: string | null;
   certThumbprint: string | null;
   signedAt: string | null;

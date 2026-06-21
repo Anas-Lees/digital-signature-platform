@@ -6,6 +6,9 @@ Built with **Angular 20** + **ASP.NET Core (.NET 10) Web API** + **Entity Framew
 
 ![CI](https://github.com/Anas-Lees/digital-signature-platform/actions/workflows/ci.yml/badge.svg)
 
+> New here? Open [`how-it-works.html`](how-it-works.html) for a 2-minute plain-language overview.
+> Signatures are attributed to the signer (e.g. "Signed by Anas"), and **anyone can verify without an account** — by dropping the file or opening a share link.
+
 ---
 
 ## The three promises

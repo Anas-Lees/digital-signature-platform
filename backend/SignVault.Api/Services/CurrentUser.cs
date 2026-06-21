@@ -14,6 +14,9 @@ public static class CurrentUser
         return Guid.Parse(sub);
     }
 
+    public static string Name(this ClaimsPrincipal user) =>
+        user.FindFirstValue("name") ?? user.FindFirstValue(JwtRegisteredClaimNames.Email) ?? "Unknown";
+
     public static string? Ip(this HttpContext ctx) =>
         ctx.Connection.RemoteIpAddress?.ToString();
 }

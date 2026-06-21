@@ -105,6 +105,7 @@ public class DocumentsController : ControllerBase
         {
             DocumentId = doc.Id,
             SignerId = userId,
+            SignerName = User.Name(),
             Algorithm = _signer.Algorithm,
             SignatureBase64 = Convert.ToBase64String(signatureBytes),
             CertThumbprint = _signer.Thumbprint
