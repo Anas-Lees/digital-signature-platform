@@ -5,6 +5,7 @@ import { App } from './app';
 
 describe('App', () => {
   beforeEach(async () => {
+    localStorage.removeItem('sv_lang'); // ensure English regardless of test order
     await TestBed.configureTestingModule({
       imports: [App],
       providers: [provideRouter([]), provideHttpClient()]
@@ -20,6 +21,6 @@ describe('App', () => {
     const fixture = TestBed.createComponent(App);
     fixture.detectChanges();
     const el = fixture.nativeElement as HTMLElement;
-    expect(el.querySelector('.brand-title')?.textContent).toContain('SignVault');
+    expect(el.querySelector('.wordmark .name')?.textContent).toContain('SignVault');
   });
 });

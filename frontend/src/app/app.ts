@@ -2,10 +2,11 @@ import { Component, inject } from '@angular/core';
 import { RouterOutlet, RouterLink, RouterLinkActive } from '@angular/router';
 import { AuthService } from './core/auth.service';
 import { I18n } from './core/i18n.service';
+import { BrandMark } from './shared/brand-mark';
 
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet, RouterLink, RouterLinkActive],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, BrandMark],
   templateUrl: './app.html',
   styleUrl: './app.scss'
 })
