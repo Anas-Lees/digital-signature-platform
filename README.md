@@ -5,9 +5,32 @@ A full-stack web app where the **server is the cryptographic signing authority**
 Built with **Angular 20** + **ASP.NET Core (.NET 10) Web API** + **Entity Framework Core**. Runs out of the box on **SQLite** (zero install) and is a one-line change away from MySQL / SQL Server / Oracle / PostgreSQL.
 
 ![CI](https://github.com/Anas-Lees/digital-signature-platform/actions/workflows/ci.yml/badge.svg)
+![Container](https://img.shields.io/badge/ghcr.io-published-1f7fc2)
+![License](https://img.shields.io/badge/license-MIT-green)
 
 > New here? Open [`how-it-works.html`](how-it-works.html) for a 2-minute plain-language overview.
 > Signatures are attributed to the signer (e.g. "Signed by Anas"), and **anyone can verify without an account** — by dropping the file or opening a share link.
+
+---
+
+## 🚀 Run it / deploy
+
+**Run the published image (Docker) — the whole app in one command:**
+```bash
+docker run -p 8080:8080 ghcr.io/anas-lees/digital-signature-platform:latest
+# open http://localhost:8080  ·  demo login: demo@signvault.local / Demo1234!
+```
+The image is built and published to GitHub Container Registry by CI on every push to `main`.
+
+**Deploy to a public URL (free):**
+
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/Anas-Lees/digital-signature-platform)
+
+One click → connect GitHub → Render builds the [`Dockerfile`](Dockerfile) (via [`render.yaml`](render.yaml)) and gives you a live `https://…onrender.com` URL. Works the same on **Fly.io**, **Railway**, or **Azure App Service** (any Docker host).
+
+**Deploy on Windows / IIS:** see [`deploy/DEPLOY.md`](deploy/DEPLOY.md).
+
+> The container uses SQLite + a generated signing key on an ephemeral disk, so data resets on redeploy (the demo user re-seeds automatically). For persistence, attach a volume at `/data` and point to a managed database — see [Switching the database](#switching-the-database-the-ef-core-payoff).
 
 ---
 
@@ -151,8 +174,12 @@ digital-signature-platform/
 ├── frontend/
 │   └── src/app/
 │       ├── core/       # auth service, JWT interceptor, guard, document service, i18n
+│       ├── shared/     # brand mark, document illustration
 │       └── features/   # login, register, documents, verify
-└── .github/workflows/  # CI: build + test both halves
+├── Dockerfile          # single-origin production image (API serves the SPA)
+├── render.yaml         # one-click cloud deploy (Render blueprint)
+├── deploy/             # Publish.ps1, Deploy-IIS.ps1, DEPLOY.md (Windows/IIS)
+└── .github/workflows/  # CI: build both halves + publish image to GHCR
 ```
 
 ## Testing

@@ -8,6 +8,11 @@ using SignVault.Api.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Cloud hosts (Render, Railway, Heroku, etc.) inject the port via $PORT — honor it.
+var port = Environment.GetEnvironmentVariable("PORT");
+if (!string.IsNullOrWhiteSpace(port))
+    builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
+
 // ── Database ──────────────────────────────────────────────────────────────────
 // SQLite by default (zero-install). To use MySQL / SQL Server / PostgreSQL, change
 // only this provider line + swap the EF Core NuGet package — the rest is untouched.

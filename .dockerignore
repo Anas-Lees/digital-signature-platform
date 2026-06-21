@@ -1,0 +1,19 @@
+# Keep the build context small and clean
+**/bin
+**/obj
+**/node_modules
+**/dist
+**/.angular
+**/wwwroot
+publish
+.git
+.github
+deploy
+**/*.db
+**/*.db-shm
+**/*.db-wal
+**/keys
+**/storage
+**/*.pfx
+*.md
+how-it-works.html
