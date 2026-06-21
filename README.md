@@ -21,6 +21,9 @@ docker run -p 8080:8080 ghcr.io/anas-lees/digital-signature-platform:latest
 # open http://localhost:8080  ·  demo login: demo@signvault.local / Demo1234!
 ```
 The image is built and published to GitHub Container Registry by CI on every push to `main`.
+First time only, make the package public (one click) so anyone can pull it:
+**Repo → Packages → `digital-signature-platform` → Package settings → Change visibility → Public**
+([package settings](https://github.com/users/Anas-Lees/packages/container/digital-signature-platform/settings)). Until then, `docker login ghcr.io` with a personal access token, or just use the Render button below.
 
 **Deploy to a public URL (free):**
 
