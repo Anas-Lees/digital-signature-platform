@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="SignVault.Api.Tests/SignVault.Api.Tests.csproj" />
+  <Project Path="SignVault.Api/SignVault.Api.csproj" />
+</Solution>

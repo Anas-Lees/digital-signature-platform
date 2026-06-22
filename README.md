@@ -208,6 +208,7 @@ digital-signature-platform/
 │   ├── Services/        PAdES PDF signer + verifier (iText), JWT, file store, audit
 │   ├── Controllers/     Auth, Documents, Verify
 │   └── Program.cs       DI, auth, hardening, single-origin hosting
+├── backend/SignVault.Api.Tests/  xUnit: signer/PAdES unit + WebApplicationFactory integration
 ├── frontend/src/app/
 │   ├── core/            auth service, JWT interceptor, guard, document service, i18n
 │   ├── shared/          brand mark, document illustration
@@ -223,9 +224,12 @@ digital-signature-platform/
 ## Testing
 
 ```bash
-cd backend/SignVault.Api && dotnet build      # backend compiles and runs
-cd frontend && npm test                        # Angular unit tests (Jasmine/Karma)
+cd backend  && dotnet test     # xUnit: RsaSigner + PAdES sign/verify units, plus
+                               # WebApplicationFactory integration tests (register→sign→verify)
+cd frontend && npm test        # Angular unit tests (Jasmine/Karma); npm run test:ci for headless
 ```
+
+CI runs both suites on every push — the .NET tests, and Karma headless with `--no-sandbox`.
 
 ## License
 

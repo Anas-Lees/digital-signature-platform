@@ -16,16 +16,18 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: backend/SignVault.Api
+        working-directory: backend
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
-      - run: dotnet restore
-      - run: dotnet build --no-restore -c Release
+      - run: dotnet restore SignVault.slnx
+      - run: dotnet build SignVault.slnx --no-restore -c Release
+      - name: Run unit + integration tests
+        run: dotnet test SignVault.slnx --no-build -c Release --verbosity normal
       - name: Check for vulnerable packages
-        run: dotnet list package --vulnerable --include-transitive || true
+        run: dotnet list SignVault.Api/SignVault.Api.csproj package --vulnerable --include-transitive || true
 
   frontend:
     name: Frontend (Angular)
@@ -42,8 +44,8 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
       - run: npm run build
-      # Unit tests (Jasmine/Karma) run locally with: npm test
-      # They are kept out of CI to avoid headless-Chrome sandbox flakiness on runners.
+      - name: Unit tests (Karma, headless Chrome --no-sandbox)
+        run: npm run test:ci
 
   # Build the production image and publish it to GitHub Container Registry.
   # Anyone can then run:  docker run -p 8080:8080 ghcr.io/anas-lees/digital-signature-platform
