@@ -104,18 +104,7 @@ var app = builder.Build();
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    if (db.Database.IsSqlite())
-    {
-        db.Database.Migrate();   // SQLite ships versioned migrations
-    }
-    else
-    {
-        db.Database.EnsureCreated();   // Postgres: create schema from the model
-        // EnsureCreated does not evolve an existing schema, so reconcile the columns that
-        // changed after the DB was first created. Idempotent (demo-grade; real apps use migrations).
-        db.Database.ExecuteSqlRaw(@"ALTER TABLE ""Documents"" ADD COLUMN IF NOT EXISTS ""SignedStorageKey"" text;");
-        db.Database.ExecuteSqlRaw(@"ALTER TABLE ""Signatures"" DROP COLUMN IF EXISTS ""SignatureBase64"";");
-    }
+    DbInitializer.Initialize(db);   // Postgres: migrations (baselined); SQLite: EnsureCreated
     Seed.Run(db);
 }
 

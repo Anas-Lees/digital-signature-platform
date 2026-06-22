@@ -15,20 +15,26 @@ namespace SignVault.Api.Controllers;
 [Authorize]
 public class DocumentsController : ControllerBase
 {
+    // 100 MB per account by default. Override with Storage:MaxBytesPerUser. Deletion is
+    // disabled (retention), so this is a hard cap rather than a reclaimable quota.
+    private const long DefaultMaxBytesPerUser = 100L * 1024 * 1024;
+
     private readonly AppDbContext _db;
     private readonly IFileStore _files;
     private readonly ISigner _signer;
     private readonly IPdfSigner _pdfSigner;
     private readonly IAuditLogger _audit;
+    private readonly IConfiguration _config;
 
     public DocumentsController(AppDbContext db, IFileStore files, ISigner signer,
-                               IPdfSigner pdfSigner, IAuditLogger audit)
+                               IPdfSigner pdfSigner, IAuditLogger audit, IConfiguration config)
     {
         _db = db;
         _files = files;
         _signer = signer;
         _pdfSigner = pdfSigner;
         _audit = audit;
+        _config = config;
     }
 
     private static bool IsPdf(byte[] bytes) =>
@@ -71,6 +77,12 @@ public class DocumentsController : ControllerBase
 
         if (!IsPdf(bytes))
             return BadRequest(new { message = "Only PDF files are supported. Please upload a .pdf document." });
+
+        var maxPerUser = _config.GetValue("Storage:MaxBytesPerUser", DefaultMaxBytesPerUser);
+        var used = await _db.Documents.Where(d => d.OwnerId == User.Id())
+            .SumAsync(d => (long?)d.SizeBytes) ?? 0L;
+        if (used + bytes.LongLength > maxPerUser)
+            return BadRequest(new { message = $"Storage limit reached for this account ({maxPerUser / (1024 * 1024)} MB)." });
 
         var hash = Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
         var key = await _files.SaveAsync(bytes, ".pdf");

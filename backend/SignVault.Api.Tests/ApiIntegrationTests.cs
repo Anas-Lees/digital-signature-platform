@@ -88,6 +88,20 @@ public class ApiIntegrationTests : IClassFixture<TestApiFactory>
     }
 
     [Fact]
+    public async Task Per_user_storage_quota_is_enforced()
+    {
+        var client = _factory.CreateClient();
+        await AuthenticateAsync(client);
+
+        // The factory caps each account at 50 KB; a 30 KB upload fits, a second one exceeds it.
+        var first = await UploadRawAsync(client, TestPdf.Padded(30_000), "a.pdf");
+        var second = await UploadRawAsync(client, TestPdf.Padded(30_000), "b.pdf");
+
+        Assert.Equal(HttpStatusCode.Created, first.StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, second.StatusCode);
+    }
+
+    [Fact]
     public async Task Verify_certificate_endpoint_returns_an_x509_cert()
     {
         using var anon = _factory.CreateClient();
@@ -111,13 +125,18 @@ public class ApiIntegrationTests : IClassFixture<TestApiFactory>
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
     }
 
-    private static async Task<string> UploadPdfAsync(HttpClient client, byte[] pdf, string fileName)
+    private static async Task<HttpResponseMessage> UploadRawAsync(HttpClient client, byte[] pdf, string fileName)
     {
         using var form = new MultipartFormDataContent();
         var part = new ByteArrayContent(pdf);
         part.Headers.ContentType = new MediaTypeHeaderValue("application/pdf");
         form.Add(part, "file", fileName);
-        var resp = await client.PostAsync("/api/documents/upload", form);
+        return await client.PostAsync("/api/documents/upload", form);
+    }
+
+    private static async Task<string> UploadPdfAsync(HttpClient client, byte[] pdf, string fileName)
+    {
+        var resp = await UploadRawAsync(client, pdf, fileName);
         Assert.Equal(HttpStatusCode.Created, resp.StatusCode);
         return (await ReadJsonAsync(resp)).GetProperty("id").GetString()!;
     }

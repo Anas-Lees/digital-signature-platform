@@ -22,6 +22,7 @@ public sealed class TestApiFactory : WebApplicationFactory<Program>
         Environment.SetEnvironmentVariable("Storage__Path", Path.Combine(_dir, "uploads"));
         Environment.SetEnvironmentVariable("Signing__PfxPath", Path.Combine(_dir, "signing.pfx"));
         Environment.SetEnvironmentVariable("Signing__PfxPassword", "test-pfx-password");
+        Environment.SetEnvironmentVariable("Storage__MaxBytesPerUser", "50000"); // small cap so the quota test is fast
         Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "Testing");
     }
 

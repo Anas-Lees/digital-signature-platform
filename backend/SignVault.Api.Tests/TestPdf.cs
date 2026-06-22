@@ -31,4 +31,14 @@ internal static class TestPdf
             pdf.AddNewPage();
         return ms.ToArray(); // MemoryStream.ToArray works after the stream is closed
     }
+
+    /// <summary>A PDF padded to <paramref name="totalBytes"/> (keeps the %PDF- header) for size/quota tests.</summary>
+    public static byte[] Padded(int totalBytes)
+    {
+        var pdf = OnePage();
+        if (totalBytes <= pdf.Length) return pdf;
+        var padded = new byte[totalBytes];
+        Array.Copy(pdf, padded, pdf.Length); // header stays intact so the upload still reads as a PDF
+        return padded;
+    }
 }
