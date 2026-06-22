@@ -133,4 +133,34 @@ public class DocumentsController : ControllerBase
         var bytes = await _files.ReadAsync(doc.StorageKey);
         return File(bytes, doc.ContentType, doc.FileName);
     }
+
+    /// <summary>Download a one-page PDF certificate/receipt for a signed document.</summary>
+    [HttpGet("{id:guid}/certificate")]
+    public async Task<IActionResult> Certificate(Guid id)
+    {
+        var doc = await _db.Documents.Include(d => d.Signature)
+            .FirstOrDefaultAsync(d => d.Id == id);
+        if (doc is null) return NotFound();
+        if (doc.OwnerId != User.Id()) return Forbid();
+        if (doc.Signature is null) return BadRequest(new { message = "Document is not signed yet." });
+
+        var pdf = CertificatePdf.Build(doc, doc.Signature);
+        var name = Path.GetFileNameWithoutExtension(doc.FileName);
+        return File(pdf, "application/pdf", $"{name}-certificate.pdf");
+    }
+
+    /// <summary>Delete a document (and its file + signature). Owner only.</summary>
+    [HttpDelete("{id:guid}")]
+    public async Task<IActionResult> Delete(Guid id)
+    {
+        var doc = await _db.Documents.FindAsync(id);
+        if (doc is null) return NotFound();
+        if (doc.OwnerId != User.Id()) return Forbid();
+
+        try { _files.Delete(doc.StorageKey); } catch { /* best effort */ }
+        _db.Documents.Remove(doc);   // cascades to the signature
+        _audit.Record(User.Id(), "DOC_DELETED", doc.Id, HttpContext.Ip(), doc.FileName);
+        await _db.SaveChangesAsync();
+        return NoContent();
+    }
 }

@@ -11,6 +11,8 @@ using SignVault.Api.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
+QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community; // free for individuals / small orgs
+
 // Cloud hosts (Render, Railway, etc.) inject the port via $PORT — honor it.
 var port = Environment.GetEnvironmentVariable("PORT");
 if (!string.IsNullOrWhiteSpace(port))

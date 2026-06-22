@@ -22,6 +22,9 @@ RUN dotnet publish ./SignVault.Api/SignVault.Api.csproj -c Release -o /app /p:Us
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
 LABEL org.opencontainers.image.source="https://github.com/Anas-Lees/digital-signature-platform"
 LABEL org.opencontainers.image.description="SignVault — digital signature platform (Angular + ASP.NET Core)"
+# libfontconfig1 is needed by QuestPDF/SkiaSharp to render the PDF certificate on Linux
+RUN apt-get update && apt-get install -y --no-install-recommends libfontconfig1 \
+    && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY --from=api /app ./
 # Writable data dir for the SQLite DB, signing key and uploads (kept out of the app dir)

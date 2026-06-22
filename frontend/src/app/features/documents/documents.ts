@@ -90,10 +90,12 @@ import { DocIllustration } from '../../shared/doc-illustration';
                   }
                   <button class="btn sm" (click)="download(d)">{{ i18n.t('docs.download') }}</button>
                   @if (d.status === 'Signed') {
+                    <button class="btn sm" (click)="downloadCertificate(d)">{{ i18n.t('docs.certificate') }}</button>
                     <button class="btn sm" (click)="copyLink(d.id)">
                       {{ copied() === d.id ? i18n.t('docs.copied') : i18n.t('docs.share') }}
                     </button>
                   }
+                  <button class="btn sm danger" [disabled]="busy()" (click)="remove(d)">{{ i18n.t('docs.delete') }}</button>
                 </td>
               </tr>
             }
@@ -174,14 +176,30 @@ export class Documents implements OnInit {
   }
 
   download(d: DocumentDto): void {
-    this.docService.download(d.id).subscribe(blob => {
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = d.fileName;
-      a.click();
-      URL.revokeObjectURL(url);
+    this.docService.download(d.id).subscribe(blob => this.saveBlob(blob, d.fileName));
+  }
+
+  downloadCertificate(d: DocumentDto): void {
+    this.docService.certificate(d.id).subscribe(blob =>
+      this.saveBlob(blob, `${d.fileName.replace(/\.[^.]+$/, '')}-certificate.pdf`));
+  }
+
+  remove(d: DocumentDto): void {
+    if (!confirm(this.i18n.t('docs.confirmDelete'))) return;
+    this.busy.set(true);
+    this.docService.remove(d.id).subscribe({
+      next: () => { this.busy.set(false); this.load(); },
+      error: (e) => { this.error.set(e?.error?.message ?? 'Delete failed.'); this.busy.set(false); }
     });
+  }
+
+  private saveBlob(blob: Blob, fileName: string): void {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    a.click();
+    URL.revokeObjectURL(url);
   }
 
   formatBytes(n: number): string {

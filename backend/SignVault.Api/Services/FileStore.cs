@@ -6,6 +6,7 @@ public interface IFileStore
     Task<string> SaveAsync(byte[] bytes, string extension);
     Task<byte[]> ReadAsync(string storageKey);
     bool Exists(string storageKey);
+    void Delete(string storageKey);
 }
 
 public sealed class LocalFileStore : IFileStore
@@ -34,4 +35,10 @@ public sealed class LocalFileStore : IFileStore
 
     public bool Exists(string storageKey) =>
         File.Exists(Path.Combine(_root, storageKey));
+
+    public void Delete(string storageKey)
+    {
+        var path = Path.Combine(_root, storageKey);
+        if (File.Exists(path)) File.Delete(path);
+    }
 }
