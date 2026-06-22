@@ -8,8 +8,9 @@ public class Document
     public AppUser? Owner { get; set; }
 
     public string FileName { get; set; } = "";
-    public string ContentType { get; set; } = "application/octet-stream";
-    public string StorageKey { get; set; } = "";      // path/key in the file store
+    public string ContentType { get; set; } = "application/pdf";
+    public string StorageKey { get; set; } = "";        // original uploaded PDF (kept — never deleted)
+    public string? SignedStorageKey { get; set; }        // the PAdES-signed PDF (signature embedded)
     public string ContentHash { get; set; } = "";      // SHA-256 hex of the original bytes
     public long SizeBytes { get; set; }
     public DocumentStatus Status { get; set; } = DocumentStatus.Uploaded;

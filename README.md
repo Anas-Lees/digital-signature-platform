@@ -1,9 +1,10 @@
 # SignVault — Digital Signature Platform
 
 A full-stack web application in which the **server is the cryptographic signing authority**.
-A user uploads a document, the platform signs it with its private RSA key (SHA-256 + X.509),
-and **anyone** can later verify that the document is authentic and unaltered — without an
-account, either by uploading the file or by opening a share link.
+A user uploads a **PDF**, the platform embeds a real **PAdES** digital signature inside it
+(ETSI EN 319 142 — the same standard Adobe Acrobat and DocuSign use), and **anyone** can later
+verify it — without an account, by uploading the file or opening a share link. Because the
+signature is embedded in the PDF, **Adobe Acrobat reads and validates it directly.**
 
 Built with **Angular 20**, **ASP.NET Core (.NET 10) Web API**, and **Entity Framework Core**.
 It runs out of the box on SQLite and uses PostgreSQL in production via a single configuration
@@ -11,7 +12,7 @@ value.
 
 ![CI](https://github.com/Anas-Lees/digital-signature-platform/actions/workflows/ci.yml/badge.svg)
 ![Container](https://img.shields.io/badge/ghcr.io-published-1f7fc2)
-![License](https://img.shields.io/badge/license-MIT-green)
+![License](https://img.shields.io/badge/license-AGPL--3.0-green)
 
 ![SignVault verification page — anyone can confirm who signed a document and that it is unaltered](docs/screenshots/verify.png)
 
@@ -77,7 +78,8 @@ to keep signatures valid across redeploys, generate a stable key with
 - **Authentication:** JWT bearer tokens, BCrypt password hashing, role-based access, and
   server-side ownership checks.
 - **Cryptography:** `System.Security.Cryptography` — RSA-3072, SHA-256, X.509 certificate.
-- **Documents:** signed PDF certificates generated with QuestPDF.
+- **PDF signing:** real **PAdES B-B** signatures (CAdES-detached CMS per ISO 32000) embedded
+  into the PDF with **iText** — Adobe Acrobat reads and validates them. Signing is PDF-only.
 
 ```
 +--------------+    HTTPS / JSON    +---------------------+    EF Core    +------------+
@@ -120,11 +122,12 @@ extensions are **C# Dev Kit** and **Angular Language Service**.
 ## Using it
 
 1. Sign in (or register).
-2. Upload a document; its SHA-256 hash is recorded.
-3. Sign it. The server signs it with its private key and the result shows "Signed by you".
-4. Download a **PDF certificate**, copy a public **share link**, or **delete** the document.
-5. On the **Verify** page (no account required), drop the file or paste a document ID to see
-   who signed it and whether it is unaltered. Editing the file makes verification fail.
+2. Upload a **PDF** (only PDFs are accepted).
+3. Sign it. The server embeds a PAdES signature inside the PDF; the result shows "Signed by you".
+4. **Download the signed PDF** (open it in Adobe Acrobat to see the signature panel) or copy a
+   public **share link**. The original is kept too — documents are never deleted.
+5. On the **Verify** page (no account required), drop a PDF or paste a document ID to see who
+   signed it and whether it is unaltered. Editing the PDF makes verification fail.
 6. Toggle العربية / English in the header for the right-to-left bilingual interface.
 
 ---
@@ -139,13 +142,14 @@ extensions are **C# Dev Kit** and **Angular Language Service**.
 | `GET` | `/api/documents` | Authenticated | List the caller's documents |
 | `POST` | `/api/documents/upload` | Authenticated | Upload a file |
 | `POST` | `/api/documents/{id}/sign` | Authenticated | Sign a document |
-| `GET` | `/api/documents/{id}/download` | Authenticated | Download the original file |
-| `GET` | `/api/documents/{id}/certificate` | Authenticated | Download a PDF certificate |
-| `DELETE` | `/api/documents/{id}` | Authenticated | Delete a document |
-| `GET` | `/api/verify/public-key` | Public | The platform's public key |
-| `POST` | `/api/verify` | Public | Verify by file (locate the signature by hash) |
-| `GET` | `/api/verify/{documentId}` | Public | Verify the stored copy (share links) |
-| `POST` | `/api/verify/{documentId}` | Public | Verify an uploaded file against a document |
+| `GET` | `/api/documents/{id}/download` | Authenticated | Download the original PDF |
+| `GET` | `/api/documents/{id}/signed` | Authenticated | Download the signed PDF (signature embedded) |
+| `GET` | `/api/verify/public-key` | Public | The platform's public signing identity |
+| `GET` | `/api/verify/certificate` | Public | Download the public `.cer` (to trust in Adobe) |
+| `POST` | `/api/verify` | Public | Verify the signature embedded in an uploaded PDF |
+| `GET` | `/api/verify/{documentId}` | Public | Verify the stored signed PDF (share links) |
+
+> Documents are never deleted — signing platforms retain them for non-repudiation and audit.
 
 ---
 
@@ -159,8 +163,20 @@ extensions are **C# Dev Kit** and **Angular Language Service**.
 - A signature and its audit record commit inside a single EF Core transaction.
 - The API sends HSTS and standard security headers and applies a per-client rate limit.
 
-This is a portfolio project. For legally-binding signatures, use a qualified Certificate
-Authority and a hardware HSM, and review the relevant regulations (eIDAS, ESIGN, and local law).
+### What the signature is — stated honestly
+
+- A real, cryptographically valid **PAdES B-B** signature. The PDF is **tamper-evident** —
+  any change after signing breaks verification, and Adobe detects it.
+- Because the signing certificate is **self-signed**, Adobe Acrobat shows the document as
+  **signed and valid (integrity), but with the signer identity "unknown/untrusted"** (a yellow
+  warning) — not a red X. This is expected. A recipient can trust it by importing our
+  certificate (`/api/verify/certificate`) into Adobe's Trusted Identities.
+- It is **not** AATL-trusted, **not** eIDAS-qualified (no QTSP/QSCD), **not** RFC 3161
+  timestamped, and **not** LTV. For legally-binding signatures, use a qualified Certificate
+  Authority / qualified trust service provider and an HSM, and review eIDAS, ESIGN, and local law.
+
+> **License note:** PAdES signing uses **iText** (AGPL-3.0), so this repository is licensed
+> under **AGPL-3.0**. See [`docs/THIRD-PARTY-LICENSES.md`](docs/THIRD-PARTY-LICENSES.md).
 
 ---
 
@@ -189,7 +205,7 @@ digital-signature-platform/
 │   ├── Domain/          entities and enums
 │   ├── Data/            AppDbContext, migrations, seed, provider selection
 │   ├── Dtos/            request/response contracts
-│   ├── Services/        signer, JWT, file store, audit, PDF certificate
+│   ├── Services/        PAdES PDF signer + verifier (iText), JWT, file store, audit
 │   ├── Controllers/     Auth, Documents, Verify
 │   └── Program.cs       DI, auth, hardening, single-origin hosting
 ├── frontend/src/app/
@@ -213,4 +229,5 @@ cd frontend && npm test                        # Angular unit tests (Jasmine/Kar
 
 ## License
 
-[MIT](LICENSE) © 2026 Anas-Lees
+[AGPL-3.0](LICENSE) © 2026 Anas-Lees. PAdES signing uses iText (AGPL-3.0); see
+[`docs/THIRD-PARTY-LICENSES.md`](docs/THIRD-PARTY-LICENSES.md).

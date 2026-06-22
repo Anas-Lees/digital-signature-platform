@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using System.Text;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -17,15 +18,21 @@ public class DocumentsController : ControllerBase
     private readonly AppDbContext _db;
     private readonly IFileStore _files;
     private readonly ISigner _signer;
+    private readonly IPdfSigner _pdfSigner;
     private readonly IAuditLogger _audit;
 
-    public DocumentsController(AppDbContext db, IFileStore files, ISigner signer, IAuditLogger audit)
+    public DocumentsController(AppDbContext db, IFileStore files, ISigner signer,
+                               IPdfSigner pdfSigner, IAuditLogger audit)
     {
         _db = db;
         _files = files;
         _signer = signer;
+        _pdfSigner = pdfSigner;
         _audit = audit;
     }
+
+    private static bool IsPdf(byte[] bytes) =>
+        bytes.Length > 4 && Encoding.ASCII.GetString(bytes, 0, 5) == "%PDF-";
 
     /// <summary>List the signed-in user's documents, newest first.</summary>
     [HttpGet]
@@ -50,7 +57,7 @@ public class DocumentsController : ControllerBase
         return Ok(doc.ToDto());
     }
 
-    /// <summary>Upload a file. Its bytes are stored and its SHA-256 hash recorded.</summary>
+    /// <summary>Upload a PDF. Only PDF files are accepted (the signature is embedded into the PDF).</summary>
     [HttpPost("upload")]
     [RequestSizeLimit(25_000_000)]
     public async Task<ActionResult<DocumentDto>> Upload(IFormFile file)
@@ -62,16 +69,17 @@ public class DocumentsController : ControllerBase
         await file.CopyToAsync(ms);
         var bytes = ms.ToArray();
 
+        if (!IsPdf(bytes))
+            return BadRequest(new { message = "Only PDF files are supported. Please upload a .pdf document." });
+
         var hash = Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
-        var ext = Path.GetExtension(file.FileName);
-        var key = await _files.SaveAsync(bytes, ext);
+        var key = await _files.SaveAsync(bytes, ".pdf");
 
         var doc = new Document
         {
             OwnerId = User.Id(),
             FileName = Path.GetFileName(file.FileName),
-            ContentType = string.IsNullOrWhiteSpace(file.ContentType)
-                ? "application/octet-stream" : file.ContentType,
+            ContentType = "application/pdf",
             StorageKey = key,
             ContentHash = hash,
             SizeBytes = bytes.LongLength,
@@ -84,7 +92,10 @@ public class DocumentsController : ControllerBase
         return CreatedAtAction(nameof(Get), new { id = doc.Id }, doc.ToDto());
     }
 
-    /// <summary>Sign a document with the platform's private key. Signature + audit commit atomically.</summary>
+    /// <summary>
+    /// Sign a PDF: embeds a PAdES B-B signature into the document (Adobe-readable) using the
+    /// platform's private key. The original is kept; the signed PDF is stored alongside it.
+    /// </summary>
     [HttpPost("{id:guid}/sign")]
     public async Task<ActionResult<SignatureDto>> Sign(Guid id)
     {
@@ -98,18 +109,22 @@ public class DocumentsController : ControllerBase
         if (doc.Status == DocumentStatus.Signed)
             return Conflict(new { message = "Document is already signed." });
 
-        var bytes = await _files.ReadAsync(doc.StorageKey);
-        var signatureBytes = _signer.Sign(bytes);
+        var original = await _files.ReadAsync(doc.StorageKey);
+        var signedPdf = _pdfSigner.SignPdf(original,
+            reason: $"Signed via SignVault by {User.Name()}",
+            location: "SignVault");
+
+        var signedKey = await _files.SaveAsync(signedPdf, ".pdf");
 
         var sig = new Signature
         {
             DocumentId = doc.Id,
             SignerId = userId,
             SignerName = User.Name(),
-            Algorithm = _signer.Algorithm,
-            SignatureBase64 = Convert.ToBase64String(signatureBytes),
+            Algorithm = "PAdES B-B (SHA256withRSA)",
             CertThumbprint = _signer.Thumbprint
         };
+        doc.SignedStorageKey = signedKey;
         doc.Status = DocumentStatus.Signed;
         _db.Signatures.Add(sig);
         _audit.Record(userId, "DOC_SIGNED", doc.Id, HttpContext.Ip(), _signer.Thumbprint);
@@ -120,7 +135,7 @@ public class DocumentsController : ControllerBase
         return Ok(sig.ToDto());
     }
 
-    /// <summary>Download the original uploaded file.</summary>
+    /// <summary>Download the original (unsigned) PDF.</summary>
     [HttpGet("{id:guid}/download")]
     public async Task<IActionResult> Download(Guid id)
     {
@@ -131,36 +146,21 @@ public class DocumentsController : ControllerBase
             return NotFound(new { message = "Stored file is missing." });
 
         var bytes = await _files.ReadAsync(doc.StorageKey);
-        return File(bytes, doc.ContentType, doc.FileName);
+        return File(bytes, "application/pdf", doc.FileName);
     }
 
-    /// <summary>Download a one-page PDF certificate/receipt for a signed document.</summary>
-    [HttpGet("{id:guid}/certificate")]
-    public async Task<IActionResult> Certificate(Guid id)
-    {
-        var doc = await _db.Documents.Include(d => d.Signature)
-            .FirstOrDefaultAsync(d => d.Id == id);
-        if (doc is null) return NotFound();
-        if (doc.OwnerId != User.Id()) return Forbid();
-        if (doc.Signature is null) return BadRequest(new { message = "Document is not signed yet." });
-
-        var pdf = CertificatePdf.Build(doc, doc.Signature);
-        var name = Path.GetFileNameWithoutExtension(doc.FileName);
-        return File(pdf, "application/pdf", $"{name}-certificate.pdf");
-    }
-
-    /// <summary>Delete a document (and its file + signature). Owner only.</summary>
-    [HttpDelete("{id:guid}")]
-    public async Task<IActionResult> Delete(Guid id)
+    /// <summary>Download the signed PDF — the signature is embedded inside, visible in Adobe Acrobat.</summary>
+    [HttpGet("{id:guid}/signed")]
+    public async Task<IActionResult> Signed(Guid id)
     {
         var doc = await _db.Documents.FindAsync(id);
         if (doc is null) return NotFound();
         if (doc.OwnerId != User.Id()) return Forbid();
+        if (string.IsNullOrEmpty(doc.SignedStorageKey) || !_files.Exists(doc.SignedStorageKey))
+            return BadRequest(new { message = "This document has not been signed yet." });
 
-        try { _files.Delete(doc.StorageKey); } catch { /* best effort */ }
-        _db.Documents.Remove(doc);   // cascades to the signature
-        _audit.Record(User.Id(), "DOC_DELETED", doc.Id, HttpContext.Ip(), doc.FileName);
-        await _db.SaveChangesAsync();
-        return NoContent();
+        var bytes = await _files.ReadAsync(doc.SignedStorageKey);
+        var name = Path.GetFileNameWithoutExtension(doc.FileName);
+        return File(bytes, "application/pdf", $"{name}-signed.pdf");
     }
 }

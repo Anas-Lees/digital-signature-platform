@@ -1,43 +1,60 @@
-using System.Security.Cryptography;
+using System.Security.Cryptography.X509Certificates;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using SignVault.Api.Data;
-using SignVault.Api.Domain;
 using SignVault.Api.Dtos;
 using SignVault.Api.Services;
 
 namespace SignVault.Api.Controllers;
 
-/// <summary>Public, anonymous verification — anyone can confirm a document without an account.</summary>
+/// <summary>Public, anonymous verification of the signature embedded inside a signed PDF.</summary>
 [ApiController]
 [Route("api/verify")]
 [AllowAnonymous]
 public class VerifyController : ControllerBase
 {
+    private const string TrustNote =
+        "Cryptographically valid PAdES signature. The signing certificate is self-signed, so Adobe " +
+        "Acrobat shows the signer's identity as \"unknown\" until you add our certificate to trusted " +
+        "identities. The document is tamper-evident either way.";
+
     private readonly AppDbContext _db;
     private readonly IFileStore _files;
+    private readonly IPdfVerifier _verifier;
     private readonly ISigner _signer;
+    private readonly X509Certificate2 _cert;
     private readonly IAuditLogger _audit;
 
-    public VerifyController(AppDbContext db, IFileStore files, ISigner signer, IAuditLogger audit)
+    public VerifyController(AppDbContext db, IFileStore files, IPdfVerifier verifier,
+                            ISigner signer, X509Certificate2 cert, IAuditLogger audit)
     {
         _db = db;
         _files = files;
+        _verifier = verifier;
         _signer = signer;
+        _cert = cert;
         _audit = audit;
     }
 
-    /// <summary>The platform's public key + signing identity, so anyone can verify independently.</summary>
+    /// <summary>The platform's public signing identity (informational).</summary>
     [HttpGet("public-key")]
     public IActionResult PublicKey() => Ok(new
     {
-        algorithm = _signer.Algorithm,
+        algorithm = "PAdES B-B (SHA256withRSA)",
         thumbprint = _signer.Thumbprint,
         publicKeyPem = _signer.PublicKeyPem
     });
 
-    /// <summary>Easiest check: drop a signed file, we find its signature and tell you who signed it.</summary>
+    /// <summary>Download the platform's public certificate (.cer) to add it to Adobe trusted identities.</summary>
+    [HttpGet("certificate")]
+    public IActionResult Certificate()
+    {
+        var der = _cert.Export(X509ContentType.Cert);
+        return File(der, "application/x-x509-ca-cert", "signvault.cer");
+    }
+
+    /// <summary>Verify the signature embedded in an uploaded PDF.</summary>
     [HttpPost]
     [RequestSizeLimit(25_000_000)]
     public async Task<ActionResult<VerifyResponse>> VerifyByFile(IFormFile file)
@@ -47,71 +64,58 @@ public class VerifyController : ControllerBase
 
         using var ms = new MemoryStream();
         await file.CopyToAsync(ms);
-        var bytes = ms.ToArray();
-        var hash = Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
 
-        var doc = await _db.Documents.Include(d => d.Signature)
-            .FirstOrDefaultAsync(d => d.ContentHash == hash && d.Status == DocumentStatus.Signed);
-
-        if (doc?.Signature is null)
+        VerifyResponse response;
+        try
         {
-            _audit.Record(null, "FILE_VERIFIED", null, HttpContext.Ip(), "no-match");
-            await _db.SaveChangesAsync();
-            return Ok(new VerifyResponse(false,
-                "We couldn't find a signature for this file. It may not have been signed here, or it was modified after signing.",
-                null, file.FileName, null, null, null, null));
+            var sigs = _verifier.Verify(ms.ToArray());
+            response = FromSignatures(sigs, documentId: null, fileName: file.FileName);
+        }
+        catch
+        {
+            response = new VerifyResponse(false,
+                "Could not read this PDF — it is not a readable PDF, or it was corrupted or altered after signing.",
+                null, file.FileName, null, null, false, null);
         }
 
-        var ok = _signer.Verify(bytes, Convert.FromBase64String(doc.Signature.SignatureBase64));
-        _audit.Record(null, "FILE_VERIFIED", doc.Id, HttpContext.Ip(), ok ? "valid" : "invalid");
+        _audit.Record(null, "FILE_VERIFIED", null, HttpContext.Ip(), response.Valid ? "valid" : "invalid");
         await _db.SaveChangesAsync();
-        return Ok(Build(ok, doc));
+        return Ok(response);
     }
 
-    /// <summary>Verify by document id (used by share links). Checks the stored copy.</summary>
+    /// <summary>Verify the stored signed PDF for a document id (used by share links).</summary>
     [HttpGet("{documentId:guid}")]
     public async Task<ActionResult<VerifyResponse>> VerifyStored(Guid documentId)
     {
-        var doc = await _db.Documents.Include(d => d.Signature)
-            .FirstOrDefaultAsync(d => d.Id == documentId);
+        var doc = await _db.Documents.FirstOrDefaultAsync(d => d.Id == documentId);
         if (doc is null)
-            return NotFound(new VerifyResponse(false, "Document not found.", documentId, null, null, null, null, null));
-        if (doc.Signature is null)
-            return Ok(new VerifyResponse(false, "This document has not been signed yet.", documentId, doc.FileName, null, null, null, null));
+            return NotFound(new VerifyResponse(false, "Document not found.", documentId, null, null, null, false, null));
+        if (string.IsNullOrEmpty(doc.SignedStorageKey) || !_files.Exists(doc.SignedStorageKey))
+            return Ok(new VerifyResponse(false, "This document has not been signed yet.", documentId, doc.FileName, null, null, false, null));
 
-        var bytes = await _files.ReadAsync(doc.StorageKey);
-        var ok = _signer.Verify(bytes, Convert.FromBase64String(doc.Signature.SignatureBase64));
+        var bytes = await _files.ReadAsync(doc.SignedStorageKey);
+        var sigs = _verifier.Verify(bytes);
+        var response = FromSignatures(sigs, doc.Id, doc.FileName);
 
-        _audit.Record(null, "DOC_VERIFIED", documentId, HttpContext.Ip(), ok ? "valid" : "invalid");
+        _audit.Record(null, "DOC_VERIFIED", documentId, HttpContext.Ip(), response.Valid ? "valid" : "invalid");
         await _db.SaveChangesAsync();
-        return Ok(Build(ok, doc));
+        return Ok(response);
     }
 
-    /// <summary>Verify an uploaded file against a specific document's signature.</summary>
-    [HttpPost("{documentId:guid}")]
-    [RequestSizeLimit(25_000_000)]
-    public async Task<ActionResult<VerifyResponse>> VerifyUpload(Guid documentId, IFormFile file)
+    private static VerifyResponse FromSignatures(IReadOnlyList<PdfSignatureInfo> sigs, Guid? documentId, string? fileName)
     {
-        if (file is null || file.Length == 0)
-            return BadRequest(new { message = "No file provided." });
+        if (sigs.Count == 0)
+            return new VerifyResponse(false, "No digital signature was found in this PDF.", documentId, fileName, null, null, false, null);
 
-        var doc = await _db.Documents.Include(d => d.Signature)
-            .FirstOrDefaultAsync(d => d.Id == documentId);
-        if (doc?.Signature is null)
-            return NotFound(new VerifyResponse(false, "No signed document with that id.", documentId, null, null, null, null, null));
+        var s = sigs[0];
+        var valid = s.IntegrityValid && s.CoversWholeDocument;
+        var message = !s.IntegrityValid
+            ? "Invalid — the signature does not verify; the document does not match it."
+            : s.CoversWholeDocument
+                ? "Valid — the document is signed and unaltered."
+                : "Signed, but the document was changed after signing.";
 
-        using var ms = new MemoryStream();
-        await file.CopyToAsync(ms);
-        var ok = _signer.Verify(ms.ToArray(), Convert.FromBase64String(doc.Signature.SignatureBase64));
-
-        _audit.Record(null, "DOC_VERIFIED_UPLOAD", documentId, HttpContext.Ip(), ok ? "valid" : "invalid");
-        await _db.SaveChangesAsync();
-        return Ok(Build(ok, doc));
+        return new VerifyResponse(valid, message, documentId, fileName, s.SignerCommonName,
+            s.SigningTimeUtc, s.CoversWholeDocument, TrustNote);
     }
-
-    private static VerifyResponse Build(bool ok, Document doc) =>
-        new(ok,
-            ok ? "Authentic and untampered." : "Invalid — the file does not match the signature.",
-            doc.Id, doc.FileName, doc.Signature!.SignerName,
-            doc.Signature.Algorithm, doc.Signature.CertThumbprint, doc.Signature.SignedAt);
 }

@@ -11,8 +11,6 @@ using SignVault.Api.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
-QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community; // free for individuals / small orgs
-
 // Cloud hosts (Render, Railway, etc.) inject the port via $PORT — honor it.
 var port = Environment.GetEnvironmentVariable("PORT");
 if (!string.IsNullOrWhiteSpace(port))
@@ -74,6 +72,8 @@ X509Certificate2 signingCert = !string.IsNullOrWhiteSpace(pfxB64)
     : SigningCertificate.LoadOrCreate(pfxPath, pfxPwd, subject);
 builder.Services.AddSingleton(signingCert);
 builder.Services.AddSingleton<ISigner, RsaSigner>();
+builder.Services.AddSingleton<IPdfSigner, PadesPdfSigner>();   // PAdES signing (embeds the signature in the PDF)
+builder.Services.AddSingleton<IPdfVerifier, PadesPdfVerifier>();
 
 // ── App services ─────────────────────────────────────────────────────────────
 builder.Services.AddSingleton<IFileStore, LocalFileStore>();

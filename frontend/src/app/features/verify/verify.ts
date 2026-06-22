@@ -22,7 +22,7 @@ import { DocIllustration } from '../../shared/doc-illustration';
       <div class="card">
         <div class="dropzone" [class.drag]="dragging()" (click)="fileInput.click()"
              (dragover)="onDragOver($event)" (dragleave)="dragging.set(false)" (drop)="onDrop($event)">
-          <input #fileInput type="file" hidden (change)="onPick($event)" />
+          <input #fileInput type="file" accept="application/pdf,.pdf" hidden (change)="onPick($event)" />
           <svg class="dz-ico" width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#1f7fc2"
                stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
             <path d="M12 16V4M7 9l5-5 5 5"/><path d="M5 20h14"/>
@@ -46,6 +46,13 @@ import { DocIllustration } from '../../shared/doc-illustration';
             }
             <div class="r-sub">{{ r.message }}</div>
             @if (r.fileName) { <div class="r-file truncate" [title]="r.fileName">{{ r.fileName }}</div> }
+            @if (r.valid) {
+              <div class="r-note">
+                {{ i18n.t('verify.openAdobe') }}
+                <a href="/api/verify/certificate">{{ i18n.t('verify.trustCert') }}</a>
+                {{ i18n.t('verify.trustNote') }}
+              </div>
+            }
           </div>
           <button class="btn block mt" (click)="another(fileInput)">{{ i18n.t('verify.another') }}</button>
         }

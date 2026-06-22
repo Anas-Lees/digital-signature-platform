@@ -17,7 +17,6 @@ public record SignatureDto(
     Guid DocumentId,
     string SignerName,
     string Algorithm,
-    string SignatureBase64,
     string CertThumbprint,
     DateTime SignedAt);
 
@@ -27,14 +26,14 @@ public record VerifyResponse(
     Guid? DocumentId,
     string? FileName,
     string? SignerName,
-    string? Algorithm,
-    string? CertThumbprint,
-    DateTime? SignedAt);
+    DateTime? SignedAt,
+    bool CoversWholeDocument,
+    string? Note);
 
 public static class MappingExtensions
 {
     public static SignatureDto ToDto(this Signature s) =>
-        new(s.Id, s.DocumentId, s.SignerName, s.Algorithm, s.SignatureBase64, s.CertThumbprint, s.SignedAt);
+        new(s.Id, s.DocumentId, s.SignerName, s.Algorithm, s.CertThumbprint, s.SignedAt);
 
     public static DocumentDto ToDto(this Document d) =>
         new(d.Id, d.FileName, d.ContentType, d.ContentHash, d.SizeBytes,

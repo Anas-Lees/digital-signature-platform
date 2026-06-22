@@ -16,7 +16,6 @@ export interface SignatureDto {
   documentId: string;
   signerName: string;
   algorithm: string;
-  signatureBase64: string;
   certThumbprint: string;
   signedAt: string;
 }
@@ -38,7 +37,7 @@ export interface VerifyResponse {
   documentId: string | null;
   fileName: string | null;
   signerName: string | null;
-  algorithm: string | null;
-  certThumbprint: string | null;
   signedAt: string | null;
+  coversWholeDocument: boolean;
+  note: string | null;
 }

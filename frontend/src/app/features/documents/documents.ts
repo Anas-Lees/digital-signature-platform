@@ -22,7 +22,7 @@ import { DocIllustration } from '../../shared/doc-illustration';
 
         <label class="filepick mt" [class.drag]="dragging()"
                (dragover)="onDragOver($event)" (dragleave)="dragging.set(false)" (drop)="onDrop($event)">
-          <input #fileInput type="file" (change)="onFile($event)" aria-label="Choose a file" />
+          <input #fileInput type="file" accept="application/pdf,.pdf" (change)="onFile($event)" aria-label="Choose a PDF" />
           <span class="pick">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1f7fc2"
                  stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -88,14 +88,13 @@ import { DocIllustration } from '../../shared/doc-illustration';
                   @if (d.status !== 'Signed') {
                     <button class="btn sm primary" [disabled]="busy()" (click)="sign(d.id)">{{ i18n.t('docs.sign') }}</button>
                   }
-                  <button class="btn sm" (click)="download(d)">{{ i18n.t('docs.download') }}</button>
                   @if (d.status === 'Signed') {
-                    <button class="btn sm" (click)="downloadCertificate(d)">{{ i18n.t('docs.certificate') }}</button>
+                    <button class="btn sm primary" (click)="downloadSigned(d)">{{ i18n.t('docs.downloadSigned') }}</button>
                     <button class="btn sm" (click)="copyLink(d.id)">
                       {{ copied() === d.id ? i18n.t('docs.copied') : i18n.t('docs.share') }}
                     </button>
                   }
-                  <button class="btn sm danger" [disabled]="busy()" (click)="remove(d)">{{ i18n.t('docs.delete') }}</button>
+                  <button class="btn sm" (click)="download(d)">{{ i18n.t('docs.download') }}</button>
                 </td>
               </tr>
             }
@@ -122,8 +121,22 @@ export class Documents implements OnInit {
   onDrop(e: DragEvent): void {
     e.preventDefault();
     this.dragging.set(false);
-    const f = e.dataTransfer?.files?.[0];
-    if (f) { this.file = f; this.fileName.set(f.name); }
+    this.pick(e.dataTransfer?.files?.[0] ?? null);
+  }
+
+  private isPdf(f: File): boolean {
+    return f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf');
+  }
+
+  private pick(f: File | null): void {
+    if (f && !this.isPdf(f)) {
+      this.error.set('Only PDF files are supported. Please choose a .pdf document.');
+      this.file = null; this.fileName.set('');
+      return;
+    }
+    this.error.set('');
+    this.file = f;
+    this.fileName.set(f?.name ?? '');
   }
 
   signedCount = computed(() => this.docs().filter(d => d.status === 'Signed').length);
@@ -142,8 +155,7 @@ export class Documents implements OnInit {
   }
 
   onFile(e: Event): void {
-    this.file = (e.target as HTMLInputElement).files?.[0] ?? null;
-    this.fileName.set(this.file?.name ?? '');
+    this.pick((e.target as HTMLInputElement).files?.[0] ?? null);
   }
 
   upload(input: HTMLInputElement): void {
@@ -179,18 +191,9 @@ export class Documents implements OnInit {
     this.docService.download(d.id).subscribe(blob => this.saveBlob(blob, d.fileName));
   }
 
-  downloadCertificate(d: DocumentDto): void {
-    this.docService.certificate(d.id).subscribe(blob =>
-      this.saveBlob(blob, `${d.fileName.replace(/\.[^.]+$/, '')}-certificate.pdf`));
-  }
-
-  remove(d: DocumentDto): void {
-    if (!confirm(this.i18n.t('docs.confirmDelete'))) return;
-    this.busy.set(true);
-    this.docService.remove(d.id).subscribe({
-      next: () => { this.busy.set(false); this.load(); },
-      error: (e) => { this.error.set(e?.error?.message ?? 'Delete failed.'); this.busy.set(false); }
-    });
+  downloadSigned(d: DocumentDto): void {
+    this.docService.signed(d.id).subscribe(blob =>
+      this.saveBlob(blob, `${d.fileName.replace(/\.[^.]+$/, '')}-signed.pdf`));
   }
 
   private saveBlob(blob: Blob, fileName: string): void {

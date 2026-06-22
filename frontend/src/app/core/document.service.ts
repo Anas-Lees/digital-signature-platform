@@ -26,12 +26,9 @@ export class DocumentService {
     return this.http.get(`${API_BASE}/documents/${id}/download`, { responseType: 'blob' });
   }
 
-  certificate(id: string): Observable<Blob> {
-    return this.http.get(`${API_BASE}/documents/${id}/certificate`, { responseType: 'blob' });
-  }
-
-  remove(id: string): Observable<void> {
-    return this.http.delete<void>(`${API_BASE}/documents/${id}`);
+  /** The signed PDF — the digital signature is embedded inside it (Adobe-readable). */
+  signed(id: string): Observable<Blob> {
+    return this.http.get(`${API_BASE}/documents/${id}/signed`, { responseType: 'blob' });
   }
 
   verifyStored(documentId: string): Observable<VerifyResponse> {
