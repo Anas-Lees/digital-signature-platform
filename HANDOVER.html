@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SignVault — Technical Handover &amp; Post-Mortem</title>
+<style>
+  :root{
+    --bg:#f6f8fb; --surface:#ffffff; --surface-2:#eef2f7; --ink:#0f172a; --ink-2:#475569;
+    --muted:#7c899c; --line:#e4e9f0; --accent:#1f7fc2; --accent-2:#7c5cff; --accent-soft:#e9f3fb;
+    --good:#15a06b; --good-soft:#e7f6ef; --warn:#b7791f; --warn-soft:#fcf3e3; --bad:#dc2f3a; --bad-soft:#fdecee;
+    --code-bg:#0f172a; --code-ink:#d7e3f4; --radius:14px;
+    --mono:'SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace;
+    --sans:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    --maxw:1180px;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:16px;line-height:1.7;-webkit-font-smoothing:antialiased}
+  a{color:var(--accent);text-decoration:none}
+  a:hover{text-decoration:underline}
+  code{font-family:var(--mono);font-size:.86em;background:var(--surface-2);border:1px solid var(--line);padding:1px 6px;border-radius:6px;color:#0b4f7a;white-space:nowrap}
+  h2 code,h3 code,h4 code,td code,li code{white-space:normal}
+
+  .hero{background:radial-gradient(900px 380px at 12% -20%,rgba(31,127,194,.16),transparent 60%),radial-gradient(700px 340px at 100% 0%,rgba(124,92,255,.12),transparent 55%),#0f172a;color:#e8eef6;border-bottom:1px solid #1e293b}
+  .hero-inner{max-width:var(--maxw);margin:0 auto;padding:46px 28px 38px}
+  .eyebrow{font-size:12.5px;letter-spacing:2px;text-transform:uppercase;color:#7aa2c7;font-weight:700;margin:0 0 10px}
+  .hero h1{font-size:34px;line-height:1.15;margin:0 0 10px;letter-spacing:-.5px;color:#fff}
+  .hero p.lede{font-size:17px;color:#b9c6d8;max-width:820px;margin:0 0 22px}
+  .meta{display:flex;flex-wrap:wrap;gap:10px}
+  .chip{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;font-weight:600;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);color:#dbe6f3;padding:6px 12px;border-radius:999px}
+  .chip b{color:#fff;font-weight:700}
+  .chip .dot{width:8px;height:8px;border-radius:50%;background:var(--accent)}
+  .chip.ok .dot{background:#3fd18b}
+
+  .layout{max-width:var(--maxw);margin:0 auto;padding:0 28px;display:grid;grid-template-columns:248px 1fr;gap:36px;align-items:start}
+  .toc{position:sticky;top:0;align-self:start;max-height:100vh;overflow-y:auto;padding:30px 4px 40px}
+  .toc h4{font-size:11px;letter-spacing:1.4px;text-transform:uppercase;color:var(--muted);margin:0 0 10px;font-weight:800}
+  .toc ol{list-style:none;margin:0;padding:0}
+  .toc li{margin:1px 0}
+  .toc a{display:block;color:var(--ink-2);font-size:13.5px;padding:6px 12px;border-radius:8px;border-left:2px solid transparent}
+  .toc a:hover{background:var(--surface);color:var(--ink);text-decoration:none}
+  .toc a.active{background:var(--surface);color:var(--ink);border-left-color:var(--accent);font-weight:600}
+  main{padding:30px 0 90px;min-width:0}
+  @media(max-width:920px){.layout{grid-template-columns:1fr}.toc{display:none}.hero h1{font-size:27px}}
+
+  section{scroll-margin-top:20px}
+  .sec-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:30px 34px;margin-bottom:26px;box-shadow:0 1px 2px rgba(15,23,42,.04)}
+  .sec-num{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,var(--accent),var(--accent-2));color:#fff;font-weight:800;font-size:15px;margin-right:12px}
+  h2{font-size:25px;letter-spacing:-.4px;margin:0 0 6px;display:flex;align-items:center}
+  .sec-sub{color:var(--ink-2);margin:0 0 22px;font-size:15px;border-bottom:1px solid var(--line);padding-bottom:16px}
+  h3{font-size:19px;margin:30px 0 10px;letter-spacing:-.2px}
+  h4{font-size:13px;text-transform:uppercase;letter-spacing:.8px;color:var(--accent);margin:22px 0 8px}
+  p{margin:11px 0}ul,ol{padding-left:22px}li{margin:7px 0}strong{color:#0b1220}
+  hr{border:0;border-top:1px solid var(--line);margin:26px 0}
+
+  pre{background:var(--code-bg);color:var(--code-ink);border-radius:12px;padding:16px 18px;overflow-x:auto;font-family:var(--mono);font-size:13px;line-height:1.6;margin:16px 0;border:1px solid #1e293b}
+  pre .c{color:#6b7d97;font-style:italic}pre .k{color:#ff9eb6}pre .s{color:#9ece6a}pre .f{color:#7aa2f7}pre .t{color:#2ac3de}pre .n{color:#ff9e64}
+  .codecap{font-size:11.5px;color:var(--muted);font-family:var(--mono);margin:14px 0 -8px;font-weight:600}
+
+  .tw{overflow-x:auto}
+  table{width:100%;border-collapse:collapse;margin:16px 0;font-size:13.6px;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+  th,td{text-align:left;padding:11px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{background:#f3f6fb;font-size:11.5px;text-transform:uppercase;letter-spacing:.5px;color:var(--ink-2);font-weight:800}
+  tr:last-child td{border-bottom:0}
+  tbody tr:hover{background:#fafcff}
+
+  .note{border:1px solid var(--line);border-left:4px solid var(--accent);background:linear-gradient(90deg,var(--accent-soft),transparent 80%);padding:14px 18px;border-radius:0 10px 10px 0;margin:18px 0}
+  .note.debt{border-left-color:var(--bad);background:linear-gradient(90deg,var(--bad-soft),transparent 80%)}
+  .note.warn{border-left-color:var(--warn);background:linear-gradient(90deg,var(--warn-soft),transparent 80%)}
+  .note.tip{border-left-color:var(--good);background:linear-gradient(90deg,var(--good-soft),transparent 80%)}
+  .note .tag{display:block;font-size:11px;font-weight:800;letter-spacing:1px;text-transform:uppercase;margin-bottom:5px;color:var(--accent)}
+  .note.debt .tag{color:var(--bad)}.note.warn .tag{color:var(--warn)}.note.tip .tag{color:var(--good)}
+
+  .trade{border:1px solid var(--line);border-radius:12px;margin:16px 0;overflow:hidden}
+  .trade>.th{background:#f3f6fb;padding:12px 18px;font-weight:800;font-size:15px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px}
+  .trade>.th .pin{flex:0 0 auto;font-size:11px;font-weight:800;letter-spacing:.5px;background:var(--accent);color:#fff;padding:3px 9px;border-radius:999px;text-transform:uppercase}
+  .trade .body{padding:8px 18px 16px}
+  .trade .row{display:grid;grid-template-columns:140px 1fr;gap:10px;padding:9px 0;border-top:1px dashed var(--line)}
+  .trade .row:first-child{border-top:0}
+  .trade .row .lab{font-size:11.5px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--ink-2);padding-top:2px}
+  @media(max-width:620px){.trade .row{grid-template-columns:1fr;gap:2px}}
+
+  .arch{display:flex;flex-wrap:wrap;align-items:stretch;justify-content:center;gap:14px;margin:18px 0;background:#0f172a;border-radius:14px;padding:24px;border:1px solid #1e293b}
+  .node{flex:1;min-width:165px;max-width:250px;background:#16233a;border:1px solid #28385a;border-radius:12px;padding:14px 16px;color:#dbe6f3}
+  .node .t{font-weight:800;font-size:14px;color:#fff;margin-bottom:3px}
+  .node .d{font-size:12px;color:#94a8c4;line-height:1.5}
+  .node.a{border-top:3px solid #dd0031}.node.b{border-top:3px solid #7c5cff}.node.c{border-top:3px solid #1f7fc2}
+  .arrow{display:grid;place-items:center;color:#5b6e8c;font-size:22px;flex:0 0 auto}
+  @media(max-width:760px){.arrow{transform:rotate(90deg)}}
+
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:680px){.grid2{grid-template-columns:1fr}}
+  .mini-card{border:1px solid var(--line);border-radius:12px;padding:16px 18px;background:#fcfdff}
+  .mini-card h4{margin-top:0}
+  .kbd{font-family:var(--mono);font-size:12px;background:#fff;border:1px solid var(--line);border-bottom-width:2px;padding:2px 7px;border-radius:6px}
+  .pill{display:inline-block;font-size:11.5px;font-weight:700;padding:2px 10px;border-radius:999px;background:var(--surface-2);color:var(--ink-2);margin:2px 4px 2px 0}
+  .pill.g{background:var(--good-soft);color:var(--good)}.pill.r{background:var(--bad-soft);color:var(--bad)}
+
+  #beginner .sec-card{border-top:4px solid var(--good)}
+  .step{display:flex;gap:14px;margin:14px 0;align-items:flex-start}
+  .step .n{flex:0 0 auto;width:30px;height:30px;border-radius:50%;background:var(--good);color:#fff;display:grid;place-items:center;font-weight:800;font-size:14px}
+  .step .sx{flex:1}.step .sx b{display:block;margin-bottom:2px}
+
+  footer{max-width:var(--maxw);margin:0 auto;padding:30px 28px 60px;color:var(--muted);font-size:13px;border-top:1px solid var(--line)}
+  .toplink{position:fixed;right:22px;bottom:22px;background:var(--accent);color:#fff;width:44px;height:44px;border-radius:12px;display:grid;place-items:center;font-size:20px;box-shadow:0 8px 24px rgba(0,0,0,.25);opacity:.92}
+  .toplink:hover{text-decoration:none;opacity:1}
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="hero-inner">
+    <p class="eyebrow">Technical Handover &amp; Project Post-Mortem</p>
+    <h1>SignVault — Digital Signature Platform</h1>
+    <p class="lede">A full-stack web application in which the server itself is the cryptographic signing authority:
+      users upload a document, the platform signs it with a private RSA key, and anyone can later verify the document’s
+      authenticity and integrity — with or without an account. This document is a complete engineering handover: the
+      what, the why, the boundaries, the trade-offs, and a foolproof beginner guide.</p>
+    <div class="meta">
+      <span class="chip"><span class="dot"></span><b>Author:</b>&nbsp;Anas-Lees</span>
+      <span class="chip"><span class="dot"></span><b>Date:</b>&nbsp;22 June 2026</span>
+      <span class="chip ok"><span class="dot"></span><b>Status:</b>&nbsp;Live in production</span>
+      <span class="chip"><span class="dot"></span><b>Stack:</b>&nbsp;Angular 20 · .NET 10 · EF Core</span>
+    </div>
+  </div>
+</header>
+
+<div class="layout">
+  <nav class="toc">
+    <h4>Contents</h4>
+    <ol id="toclist">
+      <li><a href="#overview">1 · Executive Overview</a></li>
+      <li><a href="#implemented">2 · What Was Implemented</a></li>
+      <li><a href="#scope">3 · Out of Scope &amp; Omissions</a></li>
+      <li><a href="#tradeoffs">4 · Trade-offs &amp; Alternatives</a></li>
+      <li><a href="#next">5 · Next Steps &amp; Recommendations</a></li>
+      <li><a href="#beginner">6 · Beginner’s Guide</a></li>
+      <li><a href="#appendix">Appendix · Key Links</a></li>
+    </ol>
+  </nav>
+
+  <main>
+
+    <!-- 1 ───────────────────────────────────────────── -->
+    <section id="overview">
+      <div class="sec-card">
+        <h2><span class="sec-num">1</span>Executive Overview</h2>
+        <p class="sec-sub">What the project is, the problem it solves, and the promises it must keep.</p>
+
+        <h3>What is SignVault?</h3>
+        <p>SignVault is a production-deployed web application that acts as a <strong>digital notary</strong>. An
+          authenticated user uploads any file (PDF, image, document); the server computes the file’s cryptographic
+          fingerprint and signs it with a private RSA key that <em>only the server holds</em>. The result is a
+          tamper-evident signature bound to that exact file and to the person who requested it. Afterwards,
+          <strong>anyone — with no account — can verify</strong> the file by dropping it into the public Verify page
+          or by opening a share link, and instantly see <em>who signed it</em> and <em>whether it has changed by even a
+          single byte</em>.</p>
+
+        <h3>The problem it solves</h3>
+        <p>Documents that travel between parties (contracts, agreements, letters, invoices) have no built-in proof of
+          authenticity. A PDF can be edited and re-sent; a name at the bottom proves nothing. SignVault provides a
+          verifiable chain of trust: the platform is a known authority, its public key is published, and a valid
+          signature is mathematical proof that the document passed through it unchanged.</p>
+
+        <h3>The three promises (these drive every design decision)</h3>
+        <div class="tw">
+        <table>
+          <tr><th>Promise</th><th>Meaning</th><th>Mechanism</th></tr>
+          <tr><td><strong>Integrity</strong></td><td>Not one byte has changed since signing.</td><td>SHA-256 hash of the file bytes.</td></tr>
+          <tr><td><strong>Authenticity</strong></td><td>It was signed by SignVault, not an impostor.</td><td>RSA-3072 signature with a private key the server alone controls.</td></tr>
+          <tr><td><strong>Non-repudiation</strong></td><td>The action cannot later be denied.</td><td>Append-only audit log with actor, action, IP and timestamp.</td></tr>
+        </table>
+        </div>
+
+        <h3>Core objectives</h3>
+        <ul>
+          <li><strong>Be a real, usable product</strong> — not a toy: registration, signing, verification, sharing,
+            certificates, and deletion, all working end-to-end and deployed publicly.</li>
+          <li><strong>Be approachable yet professional</strong> — a clean, bilingual (English / Arabic, LTR &amp; RTL)
+            interface, and verification that requires no account so trust is frictionless.</li>
+          <li><strong>Be portable and deployable</strong> — run on a laptop with zero database setup, yet ship to the
+            cloud, to a container, or to Windows IIS with the same code.</li>
+          <li><strong>Be portfolio-grade</strong> — the project was built as a demonstration of full-stack and DevOps
+            competency aligned with an enterprise/government .NET + Angular role.</li>
+        </ul>
+
+        <div class="note tip"><span class="tag">Current status</span>
+          The system is <strong>live</strong> at <a href="https://signvault-q8mi.onrender.com" target="_blank" rel="noopener">signvault-q8mi.onrender.com</a>
+          (Render, free tier), built and published as a public container image, with CI/CD and push-to-deploy wired,
+          and a free custom domain (<code>signvault.is-a.dev</code>) in flight. It also runs locally and on IIS.</div>
+      </div>
+    </section>
+
+    <!-- 2 ───────────────────────────────────────────── -->
+    <section id="implemented">
+      <div class="sec-card">
+        <h2><span class="sec-num">2</span>What Was Implemented</h2>
+        <p class="sec-sub">The complete inventory of what was built, how it is structured, and how data flows.</p>
+
+        <h3>High-level architecture</h3>
+        <p>SignVault is a classic <strong>three-tier web application</strong>. In <em>development</em> the two halves
+          run separately (Angular dev server proxies to the API). In <em>production</em> they are fused into a
+          <strong>single origin</strong>: the ASP.NET Core API serves the compiled Angular app from <code>wwwroot</code>
+          and exposes the API under <code>/api</code>, with a SPA fallback so client-side routes survive a refresh.
+          This removes the need for CORS and a separate frontend host in production.</p>
+
+        <div class="arch">
+          <div class="node a"><div class="t">Angular 20 SPA</div><div class="d">Browser UI. Standalone components, signals, a JWT interceptor, route guard, and a custom i18n service (EN/AR, RTL).</div></div>
+          <div class="arrow">&#8594;</div>
+          <div class="node b"><div class="t">ASP.NET Core API (.NET 10)</div><div class="d">Auth, business logic, the RSA signing engine, PDF certificates, verification, audit, hardening. Serves the SPA in prod.</div></div>
+          <div class="arrow">&#8594;</div>
+          <div class="node c"><div class="t">EF Core → DB</div><div class="d">SQLite locally; PostgreSQL in production (auto-detected). Users, documents, signatures, audit log.</div></div>
+        </div>
+
+        <h3>Technology stack</h3>
+        <div class="tw">
+        <table>
+          <tr><th>Layer</th><th>Choice</th><th>Notable libraries / details</th></tr>
+          <tr><td>Frontend</td><td>Angular 20 (standalone, signals)</td><td>TypeScript, SCSS, custom I18n, Inter font, RxJS. No UI framework — hand-written design system.</td></tr>
+          <tr><td>Backend</td><td>ASP.NET Core Web API, .NET 10, C#</td><td>Dependency injection, middleware pipeline, controllers + DTOs.</td></tr>
+          <tr><td>ORM / Data</td><td>Entity Framework Core 10</td><td><code>Microsoft.EntityFrameworkCore.Sqlite</code>; <code>Npgsql.EntityFrameworkCore.PostgreSQL</code> 10.0.2.</td></tr>
+          <tr><td>Auth</td><td>JWT bearer + BCrypt</td><td><code>Microsoft.AspNetCore.Authentication.JwtBearer</code>, <code>BCrypt.Net-Next</code> (work factor 12), role claims.</td></tr>
+          <tr><td>Cryptography</td><td><code>System.Security.Cryptography</code></td><td>RSA-3072, SHA-256, self-signed X.509 certificate (PFX / env-var / runtime-generated).</td></tr>
+          <tr><td>PDF certificates</td><td>QuestPDF (Community license)</td><td>SkiaSharp underneath; <code>libfontconfig1</code> added to the Linux image.</td></tr>
+          <tr><td>API docs</td><td>Built-in OpenAPI + Scalar UI</td><td>Dev-only; replaced Swashbuckle to avoid a .NET 10 namespace conflict.</td></tr>
+          <tr><td>Container</td><td>Docker (multi-stage)</td><td>Node build → .NET SDK publish → ASP.NET runtime; published to GitHub Container Registry.</td></tr>
+          <tr><td>CI/CD</td><td>GitHub Actions</td><td>Build both halves, publish image to GHCR, push-to-deploy to Render; self-hosted IIS workflow.</td></tr>
+          <tr><td>Hosting</td><td>Render / Docker / IIS</td><td>Same image; <code>$PORT</code> honored; IIS via the ASP.NET Core Module (in-process).</td></tr>
+        </table>
+        </div>
+
+        <h3>Backend — structure &amp; responsibilities</h3>
+        <p>The backend is a <strong>single project organised into folders by concern</strong> (a pragmatic “layered
+          monolith”). Dependencies point inward through interfaces, so any concrete (database, crypto, storage) can be
+          swapped without touching the controllers.</p>
+        <div class="codecap">backend/SignVault.Api/</div>
+<pre><span class="t">Domain/</span>        <span class="c"># Pure entities + enums: AppUser, Document, Signature, AuditEntry</span>
+<span class="t">Data/</span>          <span class="c"># AppDbContext, Db.cs (provider selection), Seed.cs, Migrations/</span>
+<span class="t">Dtos/</span>          <span class="c"># Request/response records + mapping extensions (never expose entities)</span>
+<span class="t">Services/</span>      <span class="c"># ISigner/RsaSigner, SigningCertificate, TokenService, FileStore,</span>
+              <span class="c">#   AuditLogger, CurrentUser (claims), CertificatePdf</span>
+<span class="t">Controllers/</span>   <span class="c"># AuthController, DocumentsController, VerifyController</span>
+<span class="t">Program.cs</span>     <span class="c"># Composition root: DI, auth, hardening, single-origin hosting</span></pre>
+
+        <h4>The signing engine</h4>
+        <p>The heart of the product is the <code>ISigner</code> abstraction with an <code>RsaSigner</code> implementation
+          backed by an <code>X509Certificate2</code>. The certificate is resolved at startup from one of three sources,
+          in order of precedence: an environment variable (<code>Signing__PfxBase64</code>, for a stable cloud key), a
+          PFX file on disk, or a freshly generated self-signed certificate. Signing uses
+          <code>RSA.SignData(bytes, SHA256, Pkcs1)</code>; verification uses the public key.</p>
+        <div class="codecap">Services/ISigner.cs (essence)</div>
+<pre><span class="k">public</span> <span class="k">byte</span>[] <span class="f">Sign</span>(<span class="k">byte</span>[] data)   =&gt; rsaPrivate.<span class="f">SignData</span>(data, SHA256, Pkcs1);
+<span class="k">public</span> <span class="k">bool</span> <span class="f">Verify</span>(<span class="k">byte</span>[] data, <span class="k">byte</span>[] sig) =&gt; rsaPublic.<span class="f">VerifyData</span>(data, sig, SHA256, Pkcs1);</pre>
+
+        <h4>Data model</h4>
+        <div class="tw">
+        <table>
+          <tr><th>Entity</th><th>Key fields</th><th>Notes</th></tr>
+          <tr><td><code>AppUser</code></td><td>Id (GUID), Email (unique), PasswordHash, DisplayName, Role, CreatedAt</td><td>Password stored only as a BCrypt hash. Role enum: User / Admin.</td></tr>
+          <tr><td><code>Document</code></td><td>Id, OwnerId, FileName, ContentType, StorageKey, ContentHash, SizeBytes, Status, CreatedAt</td><td>File bytes live in the file store, not the DB. <code>ContentHash</code> = SHA-256 hex.</td></tr>
+          <tr><td><code>Signature</code></td><td>Id, DocumentId, SignerId, <strong>SignerName</strong>, Algorithm, SignatureBase64, CertThumbprint, SignedAt</td><td>One-to-one with Document (cascade). SignerName denormalised for display (“Signed by Anas”).</td></tr>
+          <tr><td><code>AuditEntry</code></td><td>Id, ActorId, Action, EntityId, IpAddress, Detail, OccurredAt</td><td>Append-only by convention; records uploads, signs, verifies, deletes, logins.</td></tr>
+        </table>
+        </div>
+
+        <h4>API surface</h4>
+        <div class="tw">
+        <table>
+          <tr><th>Method · Route</th><th>Access</th><th>Purpose</th></tr>
+          <tr><td><code>POST /api/auth/register</code></td><td>Public</td><td>Create account, return JWT</td></tr>
+          <tr><td><code>POST /api/auth/login</code></td><td>Public</td><td>Authenticate, return JWT</td></tr>
+          <tr><td><code>GET /api/auth/me</code></td><td>Auth</td><td>Current user</td></tr>
+          <tr><td><code>GET /api/documents</code></td><td>Auth</td><td>List the caller’s documents</td></tr>
+          <tr><td><code>POST /api/documents/upload</code></td><td>Auth</td><td>Upload (multipart), hash &amp; store</td></tr>
+          <tr><td><code>POST /api/documents/{id}/sign</code></td><td>Auth</td><td>Sign — signature + audit in one transaction</td></tr>
+          <tr><td><code>GET /api/documents/{id}/download</code></td><td>Auth</td><td>Download the original file</td></tr>
+          <tr><td><code>GET /api/documents/{id}/certificate</code></td><td>Auth</td><td>Download a PDF certificate (QuestPDF)</td></tr>
+          <tr><td><code>DELETE /api/documents/{id}</code></td><td>Auth</td><td>Delete document, file &amp; signature (owner only)</td></tr>
+          <tr><td><code>GET /api/verify/public-key</code></td><td>Public</td><td>The platform’s public key</td></tr>
+          <tr><td><code>POST /api/verify</code></td><td>Public</td><td><strong>Verify by file</strong> — find the signature by content hash</td></tr>
+          <tr><td><code>GET /api/verify/{documentId}</code></td><td>Public</td><td>Verify the stored copy (used by share links)</td></tr>
+          <tr><td><code>POST /api/verify/{documentId}</code></td><td>Public</td><td>Verify an uploaded file against a specific document</td></tr>
+        </table>
+        </div>
+
+        <h3>Data flow — signing &amp; verification</h3>
+        <div class="grid2">
+          <div class="mini-card">
+            <h4>Signing (authenticated)</h4>
+<pre><span class="c">// inside one EF transaction:</span>
+load Document (owner check)
+bytes = fileStore.<span class="f">Read</span>(storageKey)
+sig   = signer.<span class="f">Sign</span>(bytes)
+save Signature{ SignerName, base64, thumbprint }
+doc.Status = <span class="t">Signed</span>
+audit.<span class="f">Record</span>(<span class="s">"DOC_SIGNED"</span>)
+commit</pre>
+          </div>
+          <div class="mini-card">
+            <h4>Verify-by-file (public, no ID)</h4>
+<pre>bytes = uploaded file
+hash  = <span class="f">SHA256</span>(bytes)
+doc   = find signed doc WHERE ContentHash == hash
+ok    = signer.<span class="f">Verify</span>(bytes, doc.sig)
+=&gt; { valid, signerName, fileName, signedAt }</pre>
+          </div>
+        </div>
+        <p>The verify-by-file lookup is what makes public verification effortless: a visitor simply drops the file and
+          the system <em>finds</em> its signature by fingerprint — no document ID, no account.</p>
+
+        <h3>Frontend — structure</h3>
+        <div class="codecap">frontend/src/app/</div>
+<pre><span class="t">core/</span>       <span class="c"># api.config, models, auth.service (signals + localStorage),</span>
+            <span class="c">#   auth.interceptor (attaches JWT), auth.guard, document.service, i18n.service</span>
+<span class="t">shared/</span>     <span class="c"># brand-mark.ts, doc-illustration.ts  (inline SVGs, no emojis)</span>
+<span class="t">features/</span>   <span class="c"># login, register, documents, verify  (standalone components)</span>
+<span class="t">app.ts</span>      <span class="c"># shell: top bar, segmented nav, language toggle, logout→/login</span>
+<span class="t">app.config.ts</span> <span class="c"># provideRouter + provideHttpClient(withInterceptors([authInterceptor]))</span>
+<span class="t">app.routes.ts</span> <span class="c"># '' (documents, guarded) · login · register · verify · ** → ''</span>
+<span class="t">styles.scss</span>  <span class="c"># hand-built design system (tokens, cards, buttons, dropzone, table)</span></pre>
+        <p>State is held in Angular <strong>signals</strong>; the JWT and user are persisted in <code>localStorage</code>
+          and re-hydrated on load. Internationalisation is a small custom service holding two dictionaries (EN/AR) plus a
+          <code>toggle()</code> that flips both the language and <code>document.documentElement.dir</code> to mirror the
+          entire UI for Arabic — using CSS logical properties so no second stylesheet is needed.</p>
+
+        <h3>Security &amp; production hardening</h3>
+        <ul>
+          <li><strong>Passwords:</strong> BCrypt hashes only (work factor 12).</li>
+          <li><strong>JWT:</strong> validated issuer/audience/lifetime/signing key; ownership re-checked server-side on every document action.</li>
+          <li><strong>Signing key:</strong> loaded from an environment variable in production (stable across redeploys); never committed.</li>
+          <li><strong>Atomicity:</strong> a signature and its audit row commit inside a single EF Core transaction.</li>
+          <li><strong>Edge hardening:</strong> forwarded-headers (real client IP behind the proxy), HSTS in production, security headers (<code>X-Content-Type-Options</code>, <code>X-Frame-Options</code>, <code>Referrer-Policy</code>), and a per-IP rate limiter (240 req/min).</li>
+        </ul>
+
+        <h3>DevOps &amp; deployment (what was configured)</h3>
+        <ul>
+          <li><strong>Dockerfile</strong> — multi-stage, single-origin image; writable <code>/data</code> for DB/key/uploads; honours <code>$PORT</code>; <code>libfontconfig1</code> for PDF rendering.</li>
+          <li><strong>GitHub Actions</strong> — <code>ci.yml</code>: build .NET, build Angular, vulnerability scan, publish image to <code>ghcr.io/anas-lees/digital-signature-platform</code>, and a <code>deploy</code> job that triggers Render via a secret hook. <code>deploy-iis.yml</code>: push-to-deploy to a self-hosted Windows runner.</li>
+          <li><strong>render.yaml</strong> — one-click Blueprint that provisions a free PostgreSQL database, wires <code>DATABASE_URL</code>, and runs the Docker image.</li>
+          <li><strong>deploy/ scripts</strong> — <code>Publish.ps1</code>, <code>Deploy-IIS.ps1</code>, the self-elevating <code>Deploy-IIS-All.ps1</code>, and <code>New-SigningKey.ps1</code> (generates a stable signing key), plus <code>DEPLOY.md</code>.</li>
+          <li><strong>Live deployments verified:</strong> Render (public URL), local single-origin (Kestrel), and Windows IIS (port 8090).</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- 3 ───────────────────────────────────────────── -->
+    <section id="scope">
+      <div class="sec-card">
+        <h2><span class="sec-num">3</span>Out of Scope &amp; Omissions</h2>
+        <p class="sec-sub">Where the system deliberately stops, and the known technical debt an inheriting engineer must understand.</p>
+
+        <h3>Intentionally out of scope</h3>
+        <ul>
+          <li><strong>Legally-binding / qualified e-signatures.</strong> The platform uses a <em>self-signed</em> X.509
+            certificate, not one from a recognised Certificate Authority, and there is no qualified-signature (eIDAS /
+            ESIGN) compliance. It is a demonstration of the cryptography, not a notarisation service.</li>
+          <li><strong>PAdES (signature embedded inside the PDF).</strong> Signatures are stored alongside the document in
+            the database, not embedded into the file. The PDF “certificate” is a separate human-readable receipt, not an
+            in-file digital signature that Adobe Reader would show as a green banner.</li>
+          <li><strong>Trusted timestamping (RFC 3161).</strong> Signed-at times are the server’s own clock; there is no
+            independent timestamp authority proving <em>when</em> something was signed.</li>
+          <li><strong>Identity assurance.</strong> Anyone can register with any email; there is no email verification,
+            KYC, or federated/SSO identity. “Signed by Anas” means “signed by the account that called itself Anas.”</li>
+          <li><strong>Multi-party / workflow signing.</strong> One owner signs their own document; there is no
+            send-for-signature, counter-signing, or approval workflow.</li>
+        </ul>
+
+        <h3>Features &amp; robustness not built</h3>
+        <div class="tw">
+        <table>
+          <tr><th>Area</th><th>What’s missing</th></tr>
+          <tr><td>Auth lifecycle</td><td>No refresh tokens or token revocation (access token only, 120-min lifetime); no password reset; no MFA; no account lockout on repeated failures.</td></tr>
+          <tr><td>Authorization</td><td>An <code>Admin</code> role exists in the model but no endpoint actually uses it — there is no admin dashboard.</td></tr>
+          <tr><td>Uploads</td><td>Only a 25&nbsp;MB size limit. No file-type allow-listing, no content/MIME validation, no malware scanning.</td></tr>
+          <tr><td>Listing</td><td>No pagination, search, or sorting on the documents list — it returns everything for the user.</td></tr>
+          <tr><td>Storage</td><td>Files are written to local disk (or the container’s <code>/data</code>); no object storage (S3 / Azure Blob).</td></tr>
+          <tr><td>Observability</td><td>Default ASP.NET Core logging only — no structured logging (Serilog), correlation IDs, metrics, or tracing wired into the running app.</td></tr>
+          <tr><td>Testing</td><td>No backend automated test project; 5 frontend unit tests only; no integration or end-to-end tests.</td></tr>
+        </table>
+        </div>
+
+        <h3>Technical debt &amp; “honest” compromises</h3>
+        <div class="note debt"><span class="tag">Schema management on Postgres</span>
+          SQLite uses proper EF Core <strong>migrations</strong>; Postgres uses <code>EnsureCreated()</code>, which builds
+          the schema from the model on first run but <em>cannot evolve it</em>. Adding a column later means writing real
+          Postgres migrations (or recreating the database). This was a deliberate speed-vs-rigor trade for the demo.</div>
+
+        <div class="note debt"><span class="tag">Audit log is convention, not enforced</span>
+          The audit table is append-only <em>by code discipline</em>, not by database permissions, and rows are not
+          hash-chained. A compromised app could, in principle, alter history. True non-repudiation needs WORM storage or
+          hash-chaining.</div>
+
+        <div class="note debt"><span class="tag">Ephemeral data on the free tier</span>
+          Unless PostgreSQL <em>and</em> a stable signing key (<code>Signing__PfxBase64</code>) are configured, a cloud
+          restart resets the database and mints a new key, which invalidates previously created signatures. The wiring to
+          fix this exists; it requires two environment variables to be set.</div>
+
+        <div class="note debt"><span class="tag">Minor stubs &amp; conventions</span>
+          The <code>Jwt:Key</code> and PFX password have insecure development fallbacks (overridden by env vars in
+          production); CORS is hard-coded to <code>localhost</code> dev origins (harmless because production is
+          single-origin); the demo account credentials are public; and <code>www.signvault.is-a.dev</code> was not
+          registered (only the apex subdomain).</div>
+      </div>
+    </section>
+
+    <!-- 4 ───────────────────────────────────────────── -->
+    <section id="tradeoffs">
+      <div class="sec-card">
+        <h2><span class="sec-num">4</span>Engineering Trade-offs &amp; Alternatives</h2>
+        <p class="sec-sub">For every major decision: what was chosen, what was considered instead, and why the alternative was rejected.</p>
+
+        <div class="trade">
+          <div class="th"><span class="pin">Data</span>SQLite by default, PostgreSQL in production</div>
+          <div class="body">
+            <div class="row"><div class="lab">Decision</div><div>Ship on SQLite (a single file, zero install) and auto-switch to PostgreSQL when a <code>DATABASE_URL</code> is present.</div></div>
+            <div class="row"><div class="lab">Alternatives</div><div>MySQL (the original brief) or SQL Server; running everything on a managed Postgres from day one.</div></div>
+            <div class="row"><div class="lab">Why</div><div>The build machine had <em>neither MySQL nor Docker</em> installed, so SQLite was the only friction-free path to “clone and run.” Because the app is written against EF Core and interfaces, the production swap is a one-line provider change — the entities, services, and entire frontend are untouched. This <em>demonstrates</em> the portability rather than just claiming it.</div></div>
+          </div>
+        </div>
+
+        <div class="trade">
+          <div class="th"><span class="pin">Architecture</span>Layered monolith, not multi-project Clean Architecture</div>
+          <div class="body">
+            <div class="row"><div class="lab">Decision</div><div>One <code>SignVault.Api</code> project organised into folders (Domain / Data / Dtos / Services / Controllers).</div></div>
+            <div class="row"><div class="lab">Alternatives</div><div>The textbook four-project Clean Architecture solution (Api / Application / Domain / Infrastructure).</div></div>
+            <div class="row"><div class="lab">Why</div><div>For a single developer and a runnable demo, four projects add ceremony without benefit. The folder structure still enforces separation of concerns and uses interfaces (<code>ISigner</code>, <code>IFileStore</code>, <code>IAuditLogger</code>), so it can be split into real projects later with minimal churn. The dependency direction is already correct.</div></div>
+          </div>
+        </div>
+
+        <div class="trade">
+          <div class="th"><span class="pin">Platform</span>.NET 10 / Angular 20 — latest, not LTS-of-the-brief</div>
+          <div class="body">
+            <div class="row"><div class="lab">Decision</div><div>Target the versions actually installed on the machine (.NET 10, Angular 20).</div></div>
+            <div class="row"><div class="lab">Alternatives</div><div>Pin to .NET 8 / Angular 17 to match common enterprise baselines.</div></div>
+            <div class="row"><div class="lab">Why</div><div>Using the installed SDKs avoided a download/setup detour and showcases current APIs (built-in OpenAPI, signals, new control-flow syntax). The concepts are identical across versions; the cost is that some third-party tooling lagged (see OpenAPI below).</div></div>
+          </div>
+        </div>
+
+        <div class="trade">
+          <div class="th"><span class="pin">API docs</span>Built-in OpenAPI + Scalar, not Swashbuckle</div>
+          <div class="body">
+            <div class="row"><div class="lab">Decision</div><div>Use .NET 10’s native <code>AddOpenApi()</code> plus the Scalar UI (development only).</div></div>
+            <div class="row"><div class="lab">Alternatives</div><div>Swashbuckle (Swagger UI), the long-standing default.</div></div>
+            <div class="row"><div class="lab">Why</div><div>On .NET 10, Swashbuckle collided with Microsoft.OpenApi 2.x (a moved namespace) and failed to build. Rather than fight version pinning, switching to the framework’s own OpenAPI generator plus Scalar was cleaner, modern, and conflict-free.</div></div>
+          </div>
+        </div>
+
+        <div class="trade">
+          <div class="th"><span class="pin">Crypto</span>Sign the file bytes; store the hash separately</div>
+          <div class="body">
+            <div class="row"><div class="lab">Decision</div><div><code>SignData(bytes)</code> / <code>VerifyData(bytes)</code>; the SHA-256 hex is stored for display and for hash-based lookup.</div></div>
+            <div class="row"><div class="lab">Alternatives</div><div>Hash first, then <code>SignHash</code> / <code>VerifyHash</code>.</div></div>
+            <div class="row"><div class="lab">Why</div><div>Functionally equivalent, but <code>SignData</code> is one fewer moving part and harder to get wrong. The stored hash unlocks the killer feature — public “drop a file, find its signature” verification — without changing the security model.</div></div>
+          </div>
+        </div>
+
+        <div class="trade">
+          <div class="th"><span class="pin">Signing key</span>Env-var PFX in production, generated key locally</div>
+          <div class="body">
+            <div class="row"><div class="lab">Decision</div><div>Load the certificate from <code>Signing__PfxBase64</code> when set; otherwise from a file; otherwise generate a self-signed one.</div></div>
+            <div class="row"><div class="lab">Alternatives</div><div>A hardware HSM / cloud Key Vault from the start; or always generating at runtime.</div></div>
+            <div class="row"><div class="lab">Why</div><div>An HSM is the correct production answer but needs a paid service and account. The env-var approach gives a <em>stable</em> identity across redeploys (so signatures keep verifying) at zero cost, while the runtime-generated key keeps local dev frictionless. The interface is HSM-ready — only the loader changes.</div></div>
+          </div>
+        </div>
+
+        <div class="trade">
+          <div class="th"><span class="pin">Schema</span>EnsureCreated on Postgres, migrations on SQLite</div>
+          <div class="body">
+            <div class="row"><div class="lab">Decision</div><div>Branch at startup: <code>Migrate()</code> for SQLite, <code>EnsureCreated()</code> for Postgres.</div></div>
+            <div class="row"><div class="lab">Alternatives</div><div>Generate and maintain a parallel set of Postgres-specific migrations.</div></div>
+            <div class="row"><div class="lab">Why</div><div>EF migrations are provider-specific; the existing migrations were generated for SQLite and wouldn’t apply to Postgres. <code>EnsureCreated</code> builds the (simple) schema from the model on any provider — perfect for a demo. The acknowledged cost is no schema evolution on Postgres (logged as tech debt).</div></div>
+          </div>
+        </div>
+
+        <div class="trade">
+          <div class="th"><span class="pin">i18n</span>A tiny custom service, not a library</div>
+          <div class="body">
+            <div class="row"><div class="lab">Decision</div><div>A ~120-line <code>I18n</code> service with two dictionaries and a direction toggle.</div></div>
+            <div class="row"><div class="lab">Alternatives</div><div><code>ngx-translate</code> (runtime) or <code>@angular/localize</code> (build-time).</div></div>
+            <div class="row"><div class="lab">Why</div><div>For two languages and a finite set of strings, a dependency-free service is lighter, instantly switchable at runtime, and trivial to reason about. It also directly drives <code>dir="rtl"</code>, which is the part that actually matters for Arabic. <code>@angular/localize</code> would force one bundle per locale; <code>ngx-translate</code> adds a dependency for little gain at this size.</div></div>
+          </div>
+        </div>
+
+        <div class="trade">
+          <div class="th"><span class="pin">PDF</span>QuestPDF for certificates</div>
+          <div class="body">
+            <div class="row"><div class="lab">Decision</div><div>QuestPDF under its free Community licence; install <code>libfontconfig1</code> in the Linux image.</div></div>
+            <div class="row"><div class="lab">Alternatives</div><div>PdfSharp (pure-managed, no native deps) or iText7 (AGPL).</div></div>
+            <div class="row"><div class="lab">Why</div><div>QuestPDF has by far the cleanest fluent layout API and produces a far nicer document. Its SkiaSharp engine needs one native library on Linux — a one-line <code>apt-get</code>. iText7’s AGPL licence is unsuitable for a freely-shared portfolio; PdfSharp’s cross-platform font story is fiddlier. The licence terms (free for individuals/small orgs) fit a portfolio.</div></div>
+          </div>
+        </div>
+
+        <div class="trade">
+          <div class="th"><span class="pin">CI</span>Unit tests run locally, not in CI</div>
+          <div class="body">
+            <div class="row"><div class="lab">Decision</div><div>CI builds both halves and publishes the image; Karma unit tests run locally (5 passing).</div></div>
+            <div class="row"><div class="lab">Alternatives</div><div>Run headless-Chrome Karma in CI with a custom no-sandbox launcher.</div></div>
+            <div class="row"><div class="lab">Why</div><div>GitHub runners can’t sandbox Chrome, and a custom <code>karma.conf</code> broke the test framework injection in the new Angular builder. A reliably <em>green</em> build gate was judged more valuable for a portfolio than a flaky red one. Tests still exist and run; re-enabling them in CI is a documented next step.</div></div>
+          </div>
+        </div>
+
+        <div class="trade">
+          <div class="th"><span class="pin">Auth</span>Single short-lived access token, no refresh</div>
+          <div class="body">
+            <div class="row"><div class="lab">Decision</div><div>A 120-minute JWT stored in <code>localStorage</code>; re-login when it expires.</div></div>
+            <div class="row"><div class="lab">Alternatives</div><div>Refresh tokens + rotation; HttpOnly cookies.</div></div>
+            <div class="row"><div class="lab">Why</div><div>Refresh-token infrastructure (storage, rotation, revocation) is real work that doesn’t change the demo’s story. <code>localStorage</code> is simplest for an SPA; the XSS risk is mitigated by Angular’s default escaping. Both are flagged as the first hardening step for real use.</div></div>
+          </div>
+        </div>
+
+        <div class="trade">
+          <div class="th"><span class="pin">Hosting</span>Single-origin (API serves the SPA)</div>
+          <div class="body">
+            <div class="row"><div class="lab">Decision</div><div>In production the API serves Angular from <code>wwwroot</code> with a fallback to <code>index.html</code>.</div></div>
+            <div class="row"><div class="lab">Alternatives</div><div>A separate static host/CDN for the SPA + the API on its own origin (with CORS).</div></div>
+            <div class="row"><div class="lab">Why</div><div>One origin means no CORS, one URL, one deploy, and one free Render service. A CDN is the right move at scale (and is a listed next step), but adds moving parts the project doesn’t yet need.</div></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 5 ───────────────────────────────────────────── -->
+    <section id="next">
+      <div class="sec-card">
+        <h2><span class="sec-num">5</span>Next Steps &amp; Recommendations</h2>
+        <p class="sec-sub">A prioritised roadmap for an engineer picking this up tomorrow — ordered by leverage.</p>
+
+        <h3>Immediate (make it solid)</h3>
+        <ol>
+          <li><strong>Turn on production persistence.</strong> Sync the Render Blueprint (creates the free Postgres and wires <code>DATABASE_URL</code>) and set <code>Signing__PfxBase64</code> + <code>Signing__PfxPassword</code> from <code>deploy/New-SigningKey.ps1</code>. Without this, cold starts wipe data and break old signatures.</li>
+          <li><strong>Add a backend test project.</strong> xUnit unit tests for <code>RsaSigner</code> (valid / tampered / wrong-owner) and integration tests with <code>WebApplicationFactory</code> + Testcontainers (real Postgres) for the sign/verify/delete endpoints. Re-enable Angular Karma in CI with a no-sandbox launcher.</li>
+          <li><strong>Harden auth.</strong> Refresh tokens with rotation + revocation, account lockout after repeated failures, and password reset.</li>
+          <li><strong>Validate uploads.</strong> Allow-list file types, verify the content type, and cap per-user storage.</li>
+        </ol>
+
+        <h3>Short term (make it production-grade)</h3>
+        <ol>
+          <li><strong>Real Postgres migrations.</strong> Replace <code>EnsureCreated()</code> with a provider-specific migration set so the schema can evolve safely.</li>
+          <li><strong>Structured logging &amp; observability.</strong> Wire Serilog (JSON + correlation IDs), health checks, and OpenTelemetry traces/metrics.</li>
+          <li><strong>Move secrets &amp; key to a vault / HSM.</strong> Source the signing key and JWT secret from a managed secret store; rotate on a schedule, keeping old public certs so historical signatures still verify (each signature already records its <code>CertThumbprint</code>).</li>
+          <li><strong>Object storage for uploads</strong> (S3 / Azure Blob) behind the existing <code>IFileStore</code> interface — a drop-in implementation.</li>
+        </ol>
+
+        <h3>Longer term (make it a trust product)</h3>
+        <ol>
+          <li><strong>PAdES embedded PDF signatures</strong> (via iText7 or a PAdES library) so signed PDFs verify natively in Adobe Reader.</li>
+          <li><strong>RFC 3161 trusted timestamping</strong> from an external authority.</li>
+          <li><strong>Tamper-evident audit log</strong> — hash-chain each row, or write to WORM storage; expose exportable audit reports.</li>
+          <li><strong>Admin dashboard</strong> using the already-modelled <code>Admin</code> role (user management, key rotation, audit review).</li>
+          <li><strong>Scale-out</strong> — front the API with a CDN for the SPA, add per-endpoint rate limits, and move to an always-on host to remove free-tier cold starts. Identify natural microservice seams (signing, verification, audit) only if traffic justifies it.</li>
+        </ol>
+
+        <div class="note"><span class="tag">Where to start reading the code</span>
+          <code>Program.cs</code> (the composition root) → <code>Services/ISigner.cs</code> &amp; <code>SigningCertificate.cs</code>
+          (the crypto) → <code>Controllers/DocumentsController.cs</code> &amp; <code>VerifyController.cs</code> (the use-cases).
+          On the frontend, <code>core/document.service.ts</code> and <code>features/verify/verify.ts</code> show the whole client flow.</div>
+      </div>
+    </section>
+
+    <!-- 6 ───────────────────────────────────────────── -->
+    <section id="beginner">
+      <div class="sec-card">
+        <h2><span class="sec-num">6</span>Beginner’s Guide: Use, Run &amp; Change It</h2>
+        <p class="sec-sub">No coding experience needed. This section explains, in plain language, how to get the project running and how to make small, safe changes.</p>
+
+        <h3>What this app does (in one breath)</h3>
+        <p>You log in, upload a file, and click <strong>Sign</strong>. The website stamps your file so it can’t be faked
+          or secretly changed. Then anyone — even with no account — can check the file and see <em>“Signed by you,
+          authentic.”</em> If someone edits the file, the check fails. That’s the whole idea.</p>
+
+        <h3>The easiest way to see it: just open the website</h3>
+        <p>It’s already online: <a href="https://signvault-q8mi.onrender.com" target="_blank" rel="noopener">signvault-q8mi.onrender.com</a>.
+          Sign in with the demo account — email <span class="kbd">demo@signvault.local</span>, password
+          <span class="kbd">Demo1234!</span> — upload anything, and try it. (On the free plan the very first visit after a
+          quiet period can take ~30–60 seconds to “wake up.” That’s normal.)</p>
+
+        <h3>Run it on your own computer — from scratch</h3>
+        <h4>Step A — install the free tools (once)</h4>
+        <div class="step"><div class="n">1</div><div class="sx"><b>.NET 10 SDK</b> — runs the “engine” (backend). Get it from <a href="https://dotnet.microsoft.com/download" target="_blank" rel="noopener">dotnet.microsoft.com/download</a>.</div></div>
+        <div class="step"><div class="n">2</div><div class="sx"><b>Node.js (version 20 or newer)</b> — runs the website (frontend). Get it from <a href="https://nodejs.org" target="_blank" rel="noopener">nodejs.org</a>.</div></div>
+        <div class="step"><div class="n">3</div><div class="sx"><b>A code editor</b> — Visual Studio Code is free and friendly: <a href="https://code.visualstudio.com" target="_blank" rel="noopener">code.visualstudio.com</a>.</div></div>
+        <div class="step"><div class="n">4</div><div class="sx"><b>One small extra:</b> open a terminal and run <code>npm install -g @angular/cli</code> (installs the Angular tool). You don’t need to install any database — the app makes its own.</div></div>
+
+        <h4>Step B — run the two halves (two terminals)</h4>
+        <p>“Terminal” is the black text window where you type commands. In VS Code, open one with the <strong>Terminal</strong>
+          menu → <strong>New Terminal</strong>. You need two of them.</p>
+        <div class="codecap">Terminal 1 — the backend (the engine)</div>
+<pre>cd backend/SignVault.Api
+dotnet run</pre>
+        <p>Leave it running. It prints a line like <code>Now listening on http://localhost:5080</code>.</p>
+        <div class="codecap">Terminal 2 — the frontend (the website)</div>
+<pre>cd frontend
+npm install     <span class="c"># only needed the first time; downloads the building blocks</span>
+npm start</pre>
+        <p>When it says it’s ready, open your browser to <strong>http://localhost:4200</strong> and log in with the demo
+          account above. That’s it — the app is running on your machine.</p>
+
+        <div class="note tip"><span class="tag">Even simpler, if you have Docker</span>
+          One command runs the whole thing with nothing else installed:
+          <code>docker run -p 8080:8080 ghcr.io/anas-lees/digital-signature-platform:latest</code>, then open
+          <code>http://localhost:8080</code>.</div>
+
+        <h3>How to change things (safe, beginner tweaks)</h3>
+        <p>The golden rule: <strong>change one small thing, save, and look at the browser</strong> — it updates by itself
+          while the app is running. If something breaks, undo your change (Ctrl+Z) and save again.</p>
+
+        <div class="tw">
+        <table>
+          <tr><th>I want to change…</th><th>Open this file</th><th>What to do</th></tr>
+          <tr><td>Wording / button labels (English &amp; Arabic)</td><td><code>frontend/src/app/core/i18n.service.ts</code></td><td>Find the text in quotes and edit it. There are two lists — <code>en</code> (English) and <code>ar</code> (Arabic).</td></tr>
+          <tr><td>Colours / the look</td><td><code>frontend/src/styles.scss</code></td><td>Near the top, change values like <code>--accent: #1f7fc2;</code> (the blue). Use any hex colour.</td></tr>
+          <tr><td>The demo login</td><td><code>backend/SignVault.Api/Data/Seed.cs</code></td><td>Change <code>DemoEmail</code> / <code>DemoPassword</code>. (Delete the <code>signvault.db</code> file afterwards so it re-seeds.)</td></tr>
+          <tr><td>Max upload size</td><td><code>backend/SignVault.Api/Controllers/DocumentsController.cs</code></td><td>Edit the number in <code>[RequestSizeLimit(25_000_000)]</code> (that’s 25&nbsp;MB).</td></tr>
+          <tr><td>What the PDF certificate says</td><td><code>backend/SignVault.Api/Services/CertificatePdf.cs</code></td><td>Edit the text strings; each <code>Field(...)</code> line is one row of the certificate.</td></tr>
+          <tr><td>Which pages exist</td><td><code>frontend/src/app/app.routes.ts</code></td><td>This lists the pages (login, verify, …). Best left alone until you’re comfortable.</td></tr>
+        </table>
+        </div>
+
+        <h4>A concrete first edit (try this)</h4>
+        <ol>
+          <li>With the app running, open <code>frontend/src/app/core/i18n.service.ts</code>.</li>
+          <li>Find <code>'verify.title': 'Check a document',</code> and change it to <code>'verify.title': 'Is my document real?',</code>.</li>
+          <li>Save (Ctrl+S). Look at the Verify page in your browser — the heading changed instantly. Congratulations, you just edited the app.</li>
+        </ol>
+
+        <div class="note warn"><span class="tag">Two things to avoid</span>
+          Don’t edit files inside <code>node_modules</code>, <code>bin</code>, <code>obj</code>, or <code>publish</code> —
+          those are auto-generated. And never put real passwords or secret keys into files you might share; the app reads
+          those from environment variables in production for exactly that reason.</div>
+
+        <h3>How to check it still works after a change</h3>
+        <ul>
+          <li><strong>The quick way:</strong> just use the app in the browser — upload, sign, and verify a file.</li>
+          <li><strong>The thorough way (frontend):</strong> in the <code>frontend</code> folder run <code>npm test</code> — it runs the automated checks and prints “SUCCESS”.</li>
+          <li><strong>If the backend won’t start:</strong> read the red text in Terminal 1 — it usually names the file and line to look at.</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- Appendix ─────────────────────────────────────── -->
+    <section id="appendix">
+      <div class="sec-card">
+        <h2><span class="sec-num">★</span>Appendix · Key Links</h2>
+        <p class="sec-sub">Everything an engineer needs to find the system and its moving parts.</p>
+        <div class="tw">
+        <table>
+          <tr><th>Resource</th><th>Where</th></tr>
+          <tr><td>Source code (public)</td><td><a href="https://github.com/Anas-Lees/digital-signature-platform" target="_blank" rel="noopener">github.com/Anas-Lees/digital-signature-platform</a></td></tr>
+          <tr><td>Live application</td><td><a href="https://signvault-q8mi.onrender.com" target="_blank" rel="noopener">signvault-q8mi.onrender.com</a> · custom domain <code>signvault.is-a.dev</code> (pending)</td></tr>
+          <tr><td>Container image (public)</td><td><code>ghcr.io/anas-lees/digital-signature-platform:latest</code></td></tr>
+          <tr><td>Deployment guide</td><td><code>deploy/DEPLOY.md</code> (Render, IIS, continuous deployment)</td></tr>
+          <tr><td>Plain-language overview</td><td><code>how-it-works.html</code></td></tr>
+          <tr><td>Demo account</td><td><code>demo@signvault.local</code> / <code>Demo1234!</code></td></tr>
+        </table>
+        </div>
+        <p style="color:var(--muted);font-size:13px;margin-top:18px">SignVault is a portfolio / learning project. For
+          legally-binding electronic signatures, use a qualified Certificate Authority and a hardware HSM, and review the
+          applicable regulations (eIDAS, ESIGN, and local law) with a specialist before production use.</p>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<footer>
+  SignVault — Technical Handover &amp; Post-Mortem · Prepared 22 June 2026 · Angular 20 · .NET 10 · Entity Framework Core.
+</footer>
+
+<a href="#" class="toplink" aria-label="Back to top">&#8593;</a>
+
+<script>
+  // Highlight the current section in the table of contents.
+  const links = [...document.querySelectorAll('#toclist a')];
+  const map = new Map(links.map(a => [a.getAttribute('href').slice(1), a]));
+  const io = new IntersectionObserver(entries => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        links.forEach(l => l.classList.remove('active'));
+        const a = map.get(e.target.id);
+        if (a) a.classList.add('active');
+      }
+    });
+  }, { rootMargin: '-10% 0px -75% 0px' });
+  document.querySelectorAll('section[id]').forEach(s => io.observe(s));
+</script>
+</body>
+</html>
