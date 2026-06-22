@@ -18,9 +18,20 @@ param(
 $ErrorActionPreference = 'Stop'
 Import-Module WebAdministration
 
+# The ASP.NET Core Module ships in different locations depending on bundle version
+# (System32\inetsrv OR Program Files\IIS\Asp.Net Core Module). Also accept the
+# applicationHost.config registration as proof it's present.
+function Test-AncmInstalled {
+  foreach ($p in @("$env:windir\System32\inetsrv\aspnetcorev2.dll",
+                   "${env:ProgramFiles}\IIS\Asp.Net Core Module\V2\aspnetcorev2.dll")) {
+    if (Test-Path $p) { return $true }
+  }
+  $cfg = "$env:windir\System32\inetsrv\config\applicationHost.config"
+  return ((Test-Path $cfg) -and (Select-String -Path $cfg -Pattern 'AspNetCoreModuleV2' -SimpleMatch -Quiet))
+}
+
 # 0) Hosting Bundle present?
-$ancm = Join-Path $env:windir 'System32\inetsrv\aspnetcorev2.dll'
-if (-not (Test-Path $ancm)) {
+if (-not (Test-AncmInstalled)) {
   Write-Warning 'ASP.NET Core Module (Hosting Bundle) is NOT installed — IIS cannot host the API yet.'
   Write-Host    'Install it, then re-run this script:'
   Write-Host    '  winget install Microsoft.DotNet.HostingBundle.10'

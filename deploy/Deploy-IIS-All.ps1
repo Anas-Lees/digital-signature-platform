@@ -25,16 +25,28 @@ if (-not $isAdmin) {
 $ErrorActionPreference = 'Stop'
 $here = $PSScriptRoot
 
+# The module lives in System32\inetsrv OR Program Files\IIS\Asp.Net Core Module
+# depending on bundle version; the applicationHost.config entry also proves it's there.
+function Test-AncmInstalled {
+  foreach ($p in @("$env:windir\System32\inetsrv\aspnetcorev2.dll",
+                   "${env:ProgramFiles}\IIS\Asp.Net Core Module\V2\aspnetcorev2.dll")) {
+    if (Test-Path $p) { return $true }
+  }
+  $cfg = "$env:windir\System32\inetsrv\config\applicationHost.config"
+  return ((Test-Path $cfg) -and (Select-String -Path $cfg -Pattern 'AspNetCoreModuleV2' -SimpleMatch -Quiet))
+}
+
 # 1) ASP.NET Core Hosting Bundle (lets IIS run .NET apps)
-$ancm = Join-Path $env:windir 'System32\inetsrv\aspnetcorev2.dll'
-if (-not (Test-Path $ancm)) {
+if (Test-AncmInstalled) {
+  Write-Host '==> ASP.NET Core Module already installed.' -ForegroundColor Green
+} else {
   Write-Host '==> Installing ASP.NET Core 10 Hosting Bundle (winget)...' -ForegroundColor Cyan
   try {
     winget install --id Microsoft.DotNet.HostingBundle.10 --silent `
       --accept-package-agreements --accept-source-agreements
   } catch { Write-Warning "winget install failed: $($_.Exception.Message)" }
 
-  if (-not (Test-Path $ancm)) {
+  if (-not (Test-AncmInstalled)) {
     Write-Warning 'Hosting Bundle still not detected.'
     Write-Host    'Download it manually (ASP.NET Core Runtime 10.0 > "Hosting Bundle"), install, then re-run this script:'
     Write-Host    '  https://dotnet.microsoft.com/download/dotnet/10.0' -ForegroundColor Cyan
