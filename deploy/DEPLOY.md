@@ -82,12 +82,15 @@ pushes also **auto-deploy**:
    on your server. (The runner must run with rights to manage IIS.)
 
 ## Notes for a real production server
-- Put the **signing key in an HSM / certificate store**, not a PFX in the app folder
-  (`appsettings.json` → `Signing`). The folder-based key is for local/demo use.
-- Move the **database** to SQL Server / PostgreSQL (one EF Core provider line — see the
-  root `README.md`) and the **uploads** to durable storage.
-- Set a strong `Jwt:Key` via an environment variable or `appsettings.Production.json`.
-- Front it with **HTTPS** (bind a certificate in IIS) and enable HSTS.
+- **Database:** set `DATABASE_URL` (or `ConnectionStrings__Default`) to a Postgres
+  connection string/URL — the app auto-detects it and persists data there. Otherwise it
+  uses SQLite next to the app.
+- **Stable signing key:** set `Signing__PfxBase64` + `Signing__PfxPassword` (generate with
+  `deploy/New-SigningKey.ps1`) so signatures stay verifiable across redeploys. For the
+  highest assurance, use an **HSM / certificate store** instead of a PFX.
+- **Secrets:** set a strong `Jwt__Key` via an environment variable (Render generates one).
+- **HTTPS:** Render/most hosts terminate TLS for you; on IIS, bind a certificate. HSTS and
+  security headers are already sent in Production.
 
 ## Without IIS (quick production run)
 The published app is self-hosted Kestrel — you can run it directly:

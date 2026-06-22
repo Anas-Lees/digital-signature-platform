@@ -39,7 +39,12 @@ It installs the hosting bundle, publishes, and creates the IIS site on port 8090
 secret for push-to-deploy to the cloud, or use a self-hosted runner for push-to-deploy to
 IIS — both covered in [`deploy/DEPLOY.md`](deploy/DEPLOY.md).
 
-> The container uses SQLite + a generated signing key on an ephemeral disk, so data resets on redeploy (the demo user re-seeds automatically). For persistence, attach a volume at `/data` and point to a managed database — see [Switching the database](#switching-the-database-the-ef-core-payoff).
+> **Persistence (production):** the Render blueprint provisions a **free Postgres** and wires
+> `DATABASE_URL` automatically, so accounts &amp; documents survive redeploys. To keep
+> **signatures** valid across redeploys too, set a stable signing key — run
+> [`deploy/New-SigningKey.ps1`](deploy/New-SigningKey.ps1) and paste the printed
+> `Signing__PfxBase64` + `Signing__PfxPassword` into your service's **Environment**. Without
+> those it still runs (fresh DB/key on each cold start). Locally it just uses SQLite.
 
 ---
 
