@@ -13,6 +13,9 @@ powershell -ExecutionPolicy Bypass -File .\deploy\Deploy-IIS-All.ps1
 Approve the one Windows admin prompt. It installs the Hosting Bundle (if missing),
 builds + publishes, creates the IIS site on **port 8090**, and opens it. Done.
 
+> If the dev server (`ng serve`) is running, stop it first — it locks the build
+> files and the publish step will fail.
+
 The manual steps below do the same thing in pieces, if you prefer control.
 
 ## Prerequisites (one-time, as Administrator)

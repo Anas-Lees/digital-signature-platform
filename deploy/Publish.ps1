@@ -7,7 +7,12 @@ $root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 Write-Host '==> Building Angular (production)...' -ForegroundColor Cyan
 Push-Location (Join-Path $root 'frontend')
 npm ci
+if ($LASTEXITCODE -ne 0) {
+  Pop-Location
+  throw "npm ci failed. If the dev server (ng serve) is running it locks node_modules — stop it and retry."
+}
 npm run build
+if ($LASTEXITCODE -ne 0) { Pop-Location; throw 'Angular build failed — aborting (will not deploy a stale bundle).' }
 Pop-Location
 
 $spa     = Join-Path $root 'frontend\dist\frontend\browser'
