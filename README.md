@@ -20,10 +20,8 @@ Built with **Angular 20** + **ASP.NET Core (.NET 10) Web API** + **Entity Framew
 docker run -p 8080:8080 ghcr.io/anas-lees/digital-signature-platform:latest
 # open http://localhost:8080  ·  demo login: demo@signvault.local / Demo1234!
 ```
-The image is built and published to GitHub Container Registry by CI on every push to `main`.
-First time only, make the package public (one click) so anyone can pull it:
-**Repo → Packages → `digital-signature-platform` → Package settings → Change visibility → Public**
-([package settings](https://github.com/users/Anas-Lees/packages/container/digital-signature-platform/settings)). Until then, `docker login ghcr.io` with a personal access token, or just use the Render button below.
+The image is built and published to GitHub Container Registry by CI on every push to `main`
+(the [package](https://github.com/Anas-Lees/digital-signature-platform/pkgs/container/digital-signature-platform) is public).
 
 **Deploy to a public URL (free):**
 
@@ -31,7 +29,15 @@ First time only, make the package public (one click) so anyone can pull it:
 
 One click → connect GitHub → Render builds the [`Dockerfile`](Dockerfile) (via [`render.yaml`](render.yaml)) and gives you a live `https://…onrender.com` URL. Works the same on **Fly.io**, **Railway**, or **Azure App Service** (any Docker host).
 
-**Deploy on Windows / IIS:** see [`deploy/DEPLOY.md`](deploy/DEPLOY.md).
+**Deploy on Windows / IIS — one command** (approve one admin prompt):
+```powershell
+powershell -ExecutionPolicy Bypass -File .\deploy\Deploy-IIS-All.ps1
+```
+It installs the hosting bundle, publishes, and creates the IIS site on port 8090.
+
+**Continuous deployment:** CI publishes the image on every push; add a `RENDER_DEPLOY_HOOK`
+secret for push-to-deploy to the cloud, or use a self-hosted runner for push-to-deploy to
+IIS — both covered in [`deploy/DEPLOY.md`](deploy/DEPLOY.md).
 
 > The container uses SQLite + a generated signing key on an ephemeral disk, so data resets on redeploy (the demo user re-seeds automatically). For persistence, attach a volume at `/data` and point to a managed database — see [Switching the database](#switching-the-database-the-ef-core-payoff).
 

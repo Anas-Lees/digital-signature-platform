@@ -1,0 +1,21 @@
+name: Deploy to IIS
+
+# Runs on a SELF-HOSTED runner installed on your IIS server.
+# Manual by default (Actions tab → "Deploy to IIS" → Run workflow).
+# To make it push-to-deploy, uncomment the `push:` trigger below.
+on:
+  workflow_dispatch:
+  # push:
+  #   branches: [main]
+
+jobs:
+  deploy:
+    runs-on: [self-hosted, windows]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build & publish
+        shell: powershell
+        run: ./deploy/Publish.ps1
+      - name: Deploy to IIS
+        shell: powershell
+        run: ./deploy/Deploy-IIS.ps1 -Port 8090

@@ -71,3 +71,22 @@ jobs:
             ghcr.io/anas-lees/digital-signature-platform:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  # CD: auto-deploy to the cloud on every push to main.
+  # No-op until you add a RENDER_DEPLOY_HOOK secret (see deploy/DEPLOY.md).
+  deploy:
+    name: Deploy (cloud)
+    needs: docker
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Render deploy
+        env:
+          HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
+        run: |
+          if [ -z "$HOOK" ]; then
+            echo "RENDER_DEPLOY_HOOK not set — skipping auto-deploy."
+            echo "Add it (Settings → Secrets → Actions) to enable push-to-deploy."
+            exit 0
+          fi
+          curl -fsSL "$HOOK" && echo "Render deploy triggered."
